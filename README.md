@@ -19,17 +19,17 @@ SimpleDownloader is a lightweight yet powerful Android download manager library 
 
 **Key Features**
 
-- Lightweight modern Android download manager library
-- Android 10+ Scoped Storage support
-- Pause, resume, cancel, retry, remove, and requeue downloads
-- Queue system with priority, locking, and concurrent download control
-- Resumable downloads using Range and If-Range headers
-- Network-aware downloading with Wi-Fi-only mode and retry on network gain
-- Database persistence for restoring tasks after app restart
-- Auto file naming, MIME detection, speed, ETA, and progress tracking
-- Rich listener callbacks with lifecycle, active-state, and status events
-- Detailed error handling with `DownloadException`, `RetryPolicy` configuration
-- And many more
+- ✅ Lightweight modern Android download manager library
+- ✅ Android 10+ Scoped Storage support
+- ✅ Pause, resume, cancel, retry, remove, and requeue downloads
+- ✅ Queue system with priority, locking, and concurrent download control
+- ✅ Resumable downloads using Range and If-Range headers
+- ✅ Network-aware downloading with Wi-Fi-only mode and retry on network gain
+- ✅ Database persistence for restoring tasks after app restart
+- ✅ Auto file naming, MIME detection, speed, ETA, and progress tracking
+- ✅ Rich listener callbacks with lifecycle, active-state, and status events
+- ✅ Detailed error handling with `DownloadException`, `RetryPolicy` configuration
+- ✅ And many more
 
 ### Installation
 
