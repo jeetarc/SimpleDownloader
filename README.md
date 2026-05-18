@@ -1,4 +1,4 @@
-to# SimpleDownloader - Complete Guide
+## SimpleDownloader - Complete Guide
 
 > Jeet - Creator and maintainer.
 
