@@ -1,5 +1,7 @@
 ## SimpleDownloader - Complete Guide
 
+[![](https://jitpack.io/v/jeetarc/SimpleDownloader.svg)](https://jitpack.io/#jeetarc/SimpleDownloader)
+
 > Jeet - Creator and maintainer.
 
 **Table of Contents**
