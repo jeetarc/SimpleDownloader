@@ -1,19 +1,17 @@
 ## SimpleDownloader - Complete Guide
 
-[![](https://jitpack.io/v/jeetarc/SimpleDownloader.svg)](https://jitpack.io/#jeetarc/SimpleDownloader)
-
 > Jeet - Creator and maintainer.
 
 **Table of Contents**
 
-1. [Overview](#overview)
-2. [Installation](#installation)
-3. [Quick Start](#quick-start)
-4. [API Reference](#api-reference)
-5. [Advanced Usage](#advanced-usage)
-6. [Best Practices](#best-practices)
-7. [FAQ](#faq)
-8. [Support](#support)
+[1. Overview](#overview)
+[2. Installation](#installation)
+[3. Quick Start](#quick-start)
+[4. API Reference](#api-reference)
+[5. Advanced Usage](#advanced-usage)
+[6. Best Practices](#best-practices)
+[7. FAQ](#faq)
+[8. Support](#support)
 
 ### Overview
 
@@ -120,18 +118,15 @@ SimpleDownloader.with(context)
     .setOutput(downloadsUri, "file.pdf", "application/pdf")
     .setFileUrl("https://example.com/file.pdf")
     .startDownload();
-```
 
-**3. Auto File Name & MIME**
-
-```java
+// Auto File Name & MIME
 SimpleDownloader.with(context)
     .setOutput(downloadsUri, FileName.AUTO, MimeType.AUTO)
     .setFileUrl(url)
     .startDownload();
 ```
 
-**4. With Listener**
+**3. With Listener**
 
 ```java
 SimpleDownloader.with(context)
@@ -196,7 +191,9 @@ SimpleDownloader.NETWORK_TYPE_ROAMING
 **Builder Methods (chainable)**
 
 ```java
-SimpleDownloader.with(context)
+SimpleDownloader
+    .with(context)
+    .withConfig(context) // Reuse Configuration
     .setOutput(Uri, String, String) // Save to folder with custom name and MIME
     .setOutput(Uri, FileName, MimeType) // Auto-generate name and MIME
     .setOutput(Uri, String, MimeType) // Custom name, auto MIME
@@ -221,25 +218,6 @@ SimpleDownloader.with(context)
     .addListener(Listener) // Add callback listener
     .startDownload() // Start download and return DownloadTask
     .getTask() // Get last created task
-```
-
-**Configuration Cloning**
-
-```java
-SimpleDownloader base = SimpleDownloader.with(context)
-    .setOutput(downloadsUri, FileName.AUTO, MimeType.AUTO)
-    .setCookies(cookies)
-    .setRetryCount(3)
-    .wifiOnly(true);
-
-base.withConfig(context)
-    .setFileUrl(url1)
-    .startDownload();
-
-base.withConfig(context)
-    .setFileUrl(url2)
-    .wifiOnly(false) // overwrite reused config
-    .startDownload();
 ```
 
 **DownloadTask Info Methods**
@@ -516,18 +494,18 @@ SimpleDownloader.with(context)
 
 ```java
 SimpleDownloader base = SimpleDownloader.with(context)
-    .setOutput(uri, FileName.AUTO, MimeType.AUTO)
-    .setPriority(Priority.HIGH)
-    .wifiOnly(true)
-    .setRetryCount(3);
+    .setOutput(downloadsUri, FileName.AUTO, MimeType.AUTO)
+    .setCookies(cookies)
+    .setRetryCount(3)
+    .wifiOnly(true);
 
 base.withConfig(context)
-    .setFileUrl(url2)
+    .setFileUrl(url1)
     .startDownload();
 
 base.withConfig(context)
-    .setFileUrl(url3)
-    .setPriority(Priority.NORMAL)
+    .setFileUrl(url2)
+    .wifiOnly(false) // overwrite reused config
     .startDownload();
 ```
 
