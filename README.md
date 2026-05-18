@@ -454,7 +454,22 @@ TIME_MILLIS // Generate current timestamp based name
 AUTO // Detect automatically
 ```
 
-**DownloadException Types**
+**RetryPolicy**
+
+```java
+RetryPolicy.ofAttempts(int maxRetries) // Create retry policy from retry attempts
+RetryPolicy policy = RetryPolicy.ofAttempts(3);
+
+RetryPolicy policy = RetryPolicy.builder()
+    .maxRetries(5)
+    .initialDelayMs(1000)   // Start with 1 second
+    .multiplier(2.0)         // Double each time
+    .maxDelayMs(30000)       // Cap at 30 seconds
+    .build();
+
+```
+
+**DownloadException types**
 
 ```java
 NETWORK_LOST
@@ -471,10 +486,21 @@ EMPTY_RESPONSE
 CANCELLED
 UNKNOWN
 ```
+**DownloadException info methods**
+
+```java
+DownloadException error = task.getError();
+error.getType();       // DownloadException.Type
+error.getCode();       // HTTP status code or -1
+error.isRetryable();   // boolean
+error.getMessage();    // Clean readable message
+error.toString();      // Full error
+error.getCause();      // Original raw exception if available
+```
 
 ### Advanced Usage
 
-**1. Auto File Naming**
+**Auto File Naming**
 
 ```java
 // Auto-extract filename from URL
@@ -490,7 +516,7 @@ SimpleDownloader.with(context)
     .startDownload();
 ```
 
-**2. Reuse Configuration with `withConfig()`**
+**Reuse Configuration with `withConfig()`**
 
 ```java
 SimpleDownloader base = SimpleDownloader.with(context)
@@ -509,7 +535,7 @@ base.withConfig(context)
     .startDownload();
 ```
 
-**3. Retry Policy Setup**
+**Retry Policy Setup**
 
 ```java
 RetryPolicy policy = RetryPolicy.builder()
@@ -524,28 +550,7 @@ SimpleDownloader.with(context)
     .setFileUrl(url)
 ```
 
-**4. Force a Queued Download**
-
-```java
-SimpleDownloader.forceDownload(downloadId);
-
-// Or using task
-task.forceDownload();
-```
-
-**5. Disable Auto-Start on Free Slot**
-
-```java
-SimpleDownloader.with(context)
-    .setMaxConcurrent(3)
-    .setDownloadOnSlotFree(false);
-
-// Later enable again
-SimpleDownloader.with(context)
-    .setDownloadOnSlotFree(true);
-```
-
-**6. Lock Downloads in Queue Position**
+**Lock Downloads in Queue**
 
 ```java
 SimpleDownloader.setLockedInQueue(downloadId, true);
@@ -559,7 +564,7 @@ SimpleDownloader.with(context)
     .startDownload();
 ```
 
-**7. Download with Custom Headers & Cookies**
+**Download with Custom Headers & Cookies**
 
 ```java
 SimpleDownloader.with(context)
@@ -578,7 +583,7 @@ SimpleDownloader.with(context)
     .startDownload();
 ```
 
-**8. Handle `onActiveChanged(...)`**
+**Handle `onActiveChanged(...)`**
 
 `isActive=true` when task becomes active, like connecting/downloading/retrying/etc.
 `isActive=false` when task leaves active running state, like pause/cancel/etc.
@@ -594,7 +599,7 @@ public void onActiveChanged(long id, boolean isActive, DownloadTask task) {
 }
 ```
 
-**9. Handle `onLifecycleChanged(...)`**
+**Handle `onLifecycleChanged(...)`**
 
 `DownloadTask.LIFECYCLE_STARTED` means the task entered its running lifecycle.
 `DownloadTask.LIFECYCLE_ENDED` means the task ended completely (complete, error, cancel, remove, etc).
@@ -614,16 +619,9 @@ public void onLifecycleChanged(long id, int lifecycle, DownloadTask task) {
 }
 ```
 
-**10 DownloadException handling**
+**DownloadException handling**
 
 ```java
-DownloadException error;
-error.getType();       // DownloadException.Type
-error.getCode();       // HTTP status code or -1
-error.isRetryable();   // boolean
-error.getMessage();    // Clean readable message
-error.toString();      // Full error
-error.getCause();      // Original raw exception if available
 
 // Usage
 @Override
@@ -648,7 +646,7 @@ public void onError(long id, Uri outputFileUri, Exception error, DownloadTask ta
 }
 ```
 
-**11. Batch Operations**
+**Batch Operations**
 
 ```java
 // Pause all video downloads
@@ -666,6 +664,27 @@ SimpleDownloader.remove(Status.FAILED);
 
 // Requeue all possible tasks
 SimpleDownloader.requeue();
+```
+
+**Force a Queued Download**
+
+```java
+SimpleDownloader.forceDownload(downloadId);
+
+// Or using task
+task.forceDownload();
+```
+
+**Disable Auto-Start on Free Slot**
+
+```java
+SimpleDownloader.with(context)
+    .setMaxConcurrent(3)
+    .setDownloadOnSlotFree(false);
+
+// Later enable again
+SimpleDownloader.with(context)
+    .setDownloadOnSlotFree(true);
 ```
 
 ### Best Practices
