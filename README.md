@@ -19,34 +19,17 @@ SimpleDownloader is a lightweight yet powerful Android download manager library 
 
 **Key Features**
 
-- Pure Android download library
-- OkHttp based HTTP engine
-- Scoped Storage support using DocumentFile
-- Database persistence - survives app restarts
-- Auto file naming from URL or timestamp
-- Auto MIME type detection
-- Pause, resume, cancel, remove, retry, and requeue
-- Force download support using `forceDownload()`
-- Priority system - NEXT, HIGH, NORMAL, LOW
-- Queue locking - keep task locked in queue
-- Configurable auto-start on free slot using `setDownloadOnSlotFree(...)`
-- Multiple concurrent downloads
-- Runtime Wi-Fi-only change using `task.wifiOnly(...)`
-- Network awareness - waiting for network, retry on network gain
-- Public network APIs - network availability and network type
+- Lightweight modern Android download manager library
+- Android 10+ Scoped Storage support
+- Pause, resume, cancel, retry, remove, and requeue downloads
+- Queue system with priority, locking, and concurrent download control
 - Resumable downloads using Range and If-Range headers
-- ETA and speed calculation with smooth averaging
-- Detailed `DownloadException` error type
-- Dynamic HTTP error messages from status code
-- Last error access using `task.getError()`
-- State helpers like `isWaitingForNetwork()` and `isFinished()`
-- Rich callbacks with lifecycle and active-state events
-- Multi-listener support
-- Context listener cleanup to prevent memory leaks
-- Configuration cloning using `withConfig()`
-- Task restore from database
-- Batch operations by ID, status, priority, MIME type, and URL
-- Modular internal architecture
+- Network-aware downloading with Wi-Fi-only mode and retry on network gain
+- Database persistence for restoring tasks after app restart
+- Auto file naming, MIME detection, speed, ETA, and progress tracking
+- Rich listener callbacks with lifecycle, active-state, and status events
+- Detailed error handling with `DownloadException`, `RetryPolicy` configuration
+- And many more
 
 ### Installation
 
@@ -361,6 +344,7 @@ downloader.TaskDatabase.removeTasksData() // Clear all database tasks
 ```
 
 **Listener Interface**
+
 Overwrite only the callbacks you whant.
 
 ```java
@@ -806,6 +790,60 @@ SimpleDownloader.with(context)
 > `onLifecycleChanged()` tells you when the full task lifecycle starts and ends.
 It fires only once for start and once for end.
 
+**Q: What is `withConfig()`?**
+
+> `withConfig()` clones the current builder configuration into a new builder. You can reuse output, headers, cookies, retry, priority, and other settings, then overwrite only the fields you need.
+
+**Q: How do I get the tree URI for output?**
+
+> Tree URI is the folder permission URI returned by Android’s folder picker. SimpleDownloader uses it with `setOutput(...)` to create files inside the selected folder.
+
+> a) Open the folder picker (via `ACTION_OPEN_DOCUMENT_TREE`):
+```java
+Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+intent.addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+startActivityForResult(intent, 101);
+```
+
+> b) Handle the result in `onActivityResult(...)`:
+```java
+@Override
+protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+
+    if (requestCode == 101 && resultCode == RESULT_OK && data != null) {
+        Uri treeUri = data.getData();
+        if (treeUri != null) {
+            int flags = data.getFlags() & (
+                Intent.FLAG_GRANT_READ_URI_PERMISSION |
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            );
+            getContentResolver().takePersistableUriPermission(treeUri, flags);
+
+            // optionally Save this treeUri string in SharedPreferences for later use
+            getSharedPreferences("app", MODE_PRIVATE)
+                     .edit().putString("saved_tree_uri", treeUri.toString())
+                     .apply();
+        }
+    }
+}
+```
+
+> c) Use it with `.setOutput(uri, ...)`:
+```java
+String savedUri = getSharedPreferences("app", MODE_PRIVATE).getString("saved_tree_uri", null);
+if (savedUri != null) {
+    Uri treeUri = Uri.parse(savedUri);
+    SimpleDownloader.with(context)
+        .setOutput(treeUri, "video1.mp4", MimeType.AUTO) // here
+        .setFileUrl(url)
+        .startDownload();
+}
+```
+
 **Q: How do I check if a URL already exists?**
 
 ```java
@@ -860,10 +898,6 @@ SimpleDownloader.setPriority(id, Priority.NEXT);
 // Or
 task.setPriority(Priority.NEXT);
 ```
-
-**Q: What is `withConfig()`?**
-
-> `withConfig()` clones the current builder configuration into a new builder. You can reuse output, headers, cookies, retry, priority, and other settings, then overwrite only the fields you need.
 
 **Q: How to delete a file**
 
