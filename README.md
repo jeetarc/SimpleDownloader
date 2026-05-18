@@ -4,14 +4,14 @@
 
 **Table of Contents**
 
-[1. Overview](#overview)
-[2. Installation](#installation)
-[3. Quick Start](#quick-start)
-[4. API Reference](#api-reference)
-[5. Advanced Usage](#advanced-usage)
-[6. Best Practices](#best-practices)
-[7. FAQ](#faq)
-[8. Support](#support)
+1. [Overview](#overview)
+2. [Installation](#installation)
+3. [Quick Start](#quick-start)
+4. [API Reference](#api-reference)
+5. [Advanced Usage](#advanced-usage)
+6. [Best Practices](#best-practices)
+7. [FAQ](#faq)
+8. [Support](#support)
 
 ### Overview
 
@@ -154,40 +154,6 @@ SimpleDownloader.with(context)
 
 ### API Reference
 
-**Initialization & Global Configuration**
-
-```java
-SimpleDownloader.with(Context) // Initialize library and return builder
-          .setMaxConcurrent(int) // Set maximum parallel downloads
-          .enableRetryOnNetworkGain(boolean) // Auto-resume when network returns
-          .enableHistory(boolean) // Keep completed/cancelled/failed tasks in database/list
-          .enableSorting(boolean) // Enable/disable auto-sorting of task list
-          .setDownloadOnSlotFree(boolean) // Auto-start queued task when slot becomes free
-SimpleDownloader.releaseCallbacks(Context) // Remove listeners attached by this context
-```
-
-**Network APIs**
-
-```java
-SimpleDownloader.isNetworkAvailable() // boolean Current network available?
-SimpleDownloader.getNetworkType() // int Current network type
-SimpleDownloader.getNetworkTypeName() // String Current network type name
-```
-
-**Network Type Constants**
-
-```java
-SimpleDownloader.NETWORK_TYPE_NONE
-SimpleDownloader.NETWORK_TYPE_UNKNOWN
-SimpleDownloader.NETWORK_TYPE_WIFI
-SimpleDownloader.NETWORK_TYPE_CELLULAR
-SimpleDownloader.NETWORK_TYPE_ETHERNET
-SimpleDownloader.NETWORK_TYPE_BLUETOOTH
-SimpleDownloader.NETWORK_TYPE_VPN
-SimpleDownloader.NETWORK_TYPE_USB
-SimpleDownloader.NETWORK_TYPE_ROAMING
-```
-
 **Builder Methods (chainable)**
 
 ```java
@@ -287,6 +253,40 @@ task.setDeleteOnRemoval(boolean)
 task.addListener(SimpleDownloader.Listener)
 task.removeListener(SimpleDownloader.Listener)
 task.releaseCallbacks()
+```
+
+**Initialization & Global Configuration**
+
+```java
+SimpleDownloader.with(Context) // Initialize library and return builder
+          .setMaxConcurrent(int) // Set maximum parallel downloads
+          .enableRetryOnNetworkGain(boolean) // Auto-resume when network returns
+          .enableHistory(boolean) // Keep completed/cancelled/failed tasks in database/list
+          .enableSorting(boolean) // Enable/disable auto-sorting of task list
+          .setDownloadOnSlotFree(boolean) // Auto-start queued task when slot becomes free
+SimpleDownloader.releaseCallbacks(Context) // Remove listeners attached by this context
+```
+
+**Network APIs**
+
+```java
+SimpleDownloader.isNetworkAvailable() // boolean Current network available?
+SimpleDownloader.getNetworkType() // int Current network type
+SimpleDownloader.getNetworkTypeName() // String Current network type name
+```
+
+**Network Type Constants**
+
+```java
+SimpleDownloader.NETWORK_TYPE_NONE
+SimpleDownloader.NETWORK_TYPE_UNKNOWN
+SimpleDownloader.NETWORK_TYPE_WIFI
+SimpleDownloader.NETWORK_TYPE_CELLULAR
+SimpleDownloader.NETWORK_TYPE_ETHERNET
+SimpleDownloader.NETWORK_TYPE_BLUETOOTH
+SimpleDownloader.NETWORK_TYPE_VPN
+SimpleDownloader.NETWORK_TYPE_USB
+SimpleDownloader.NETWORK_TYPE_ROAMING
 ```
 
 **Global Control Methods**
@@ -579,6 +579,7 @@ SimpleDownloader.with(context)
 ```
 
 **8. Handle `onActiveChanged(...)`**
+
 `isActive=true` when task becomes active, like connecting/downloading/retrying/etc.
 `isActive=false` when task leaves active running state, like pause/cancel/etc.
 
@@ -594,6 +595,7 @@ public void onActiveChanged(long id, boolean isActive, DownloadTask task) {
 ```
 
 **9. Handle `onLifecycleChanged(...)`**
+
 `DownloadTask.LIFECYCLE_STARTED` means the task entered its running lifecycle.
 `DownloadTask.LIFECYCLE_ENDED` means the task ended completely (complete, error, cancel, remove, etc).
 
@@ -721,9 +723,10 @@ intent.addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
 
 // inside onActivityResult
 if (treeUri != null) {
-    int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+    int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                   | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
-getContentResolver().takePersistableUriPermission(treeUri, flags);
+    getContentResolver().takePersistableUriPermission(treeUri, flags);
 }
 ```
 
@@ -755,7 +758,7 @@ public void onWaitingForNetwork(long id, int networkType, DownloadTask task) {
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(uri, "file1.zip", "application/zip)
+    .setOutput(uri, "file1.zip", "application/zip")
     .setFileUrl(url)
     .startDownload();
 
