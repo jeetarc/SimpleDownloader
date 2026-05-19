@@ -2,7 +2,7 @@
 
 [![](https://jitpack.io/v/jeetarc/SimpleDownloader.svg)](https://jitpack.io/#jeetarc/SimpleDownloader)
 
-> [Jeet](https://github.com/jeet-012  - Creator and maintainer.
+> [Jeet](https://github.com/jeet-012) - Creator and maintainer.
 
 **Table of Contents**
 
