@@ -2,7 +2,7 @@
 
 [![](https://jitpack.io/v/jeetarc/SimpleDownloader.svg)](https://jitpack.io/#jeetarc/SimpleDownloader)
 
-> Jeet - Creator and maintainer.
+> [Jeet](https://github.com/jeet-012  - Creator and maintainer.
 
 **Table of Contents**
 
@@ -23,9 +23,9 @@ SimpleDownloader is an Android file download library built for fast and secure d
 
 - ✅ Modern Android download manager library
 - ✅ Android 11+ to latest version support
-- ✅ Pause, resume, cancel, retry, remove, and requeue downloads
+- ✅ Pause, smart resume, cancel, retry, remove, and requeue downloads
 - ✅ Queue system with priority, locking, and concurrent download control
-- ✅ smart Resumable downloads.
+- ✅ handle authentication via `.setHeaders(...)`, `.setCookies(...)`
 - ✅ Network-aware downloading with Wi-Fi-only mode and auto resume on network back
 - ✅ Database persistence for restoring tasks after app restart
 - ✅ Auto file naming, MIME detection, speed, ETA, and progress tracking
