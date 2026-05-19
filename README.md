@@ -1,4 +1,4 @@
-## SimpleDownloader - Complete Guide
+## SimpleDownloader - Guide
 
 [![](https://jitpack.io/v/jeetarc/SimpleDownloader.svg)](https://jitpack.io/#jeetarc/SimpleDownloader)
 
@@ -911,5 +911,7 @@ task.setDeleteOnRemoval(true).remove();
 ### Support
 
 GitHub Issues: https://github.com/jeetarc/SimpleDownloader/issues
+
+[Jeet](https://github.com/jeet-012) - Creator and maintainer.
 
 If you find this library useful, please consider starring it on GitHub! ⭐
