@@ -17,16 +17,16 @@
 
 ### Overview
 
-SimpleDownloader is an Android flie download library built for first anand secure file downloads in modern devices. It handles basic downloads to, multiple concurrent downloads, queue management, pause/resume/retry/cancel/etc, priority, smart network handling, scoped storage support, database persistence, and many more. 
+SimpleDownloader is an Android file download library built for fast and secure downloads on modern Android devices. It supports multiple concurrent downloads, queue management, pause/resume/retry/cancel/remove/requeue controls, priority handling, smart network handling, scoped storage, persistence across app restart, speed, ETA, rich listener callbacks, and many more.
 
 **Key Features**
 
 - ✅ Modern Android download manager library
-- ✅ Android 11+ tO latest version support
+- ✅ Android 11+ to latest version support
 - ✅ Pause, resume, cancel, retry, remove, and requeue downloads
 - ✅ Queue system with priority, locking, and concurrent download control
 - ✅ smart Resumable downloads.
-- ✅ Network-aware downloading with Wi-Fi-only mode and retry on network gain
+- ✅ Network-aware downloading with Wi-Fi-only mode and auto resume on network back
 - ✅ Database persistence for restoring tasks after app restart
 - ✅ Auto file naming, MIME detection, speed, ETA, and progress tracking
 - ✅ Rich listener callbacks with lifecycle, active-state, and status events
