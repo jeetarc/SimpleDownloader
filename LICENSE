@@ -1,0 +1,74 @@
+SimpleDownloader License
+Version 1.0
+
+Copyright (c) 2026 Jeet Jati / Jeetarc
+
+
+1. Permission to Use
+
+- You are allowed to use SimpleDownloader as a dependency in applications, including commercial applications.
+
+- You are allowed to published, distribute, monetized and sold applications that use SimpleDownloader as a dependency
+
+- You allowed to fork SimpleDownloader on GitHub or other source-hosting platforms for review, testing, development, private/internal changes, bug fixes, experimentation, and contributions back to the official SimpleDownloader project.
+
+- You are allowed and encouraged to submit fixes, improvements, patches, or other contributions back to the official SimpleDownloader project through pull requests, issues, discussions, or other contribution methods accepted by the project owner.
+By submitting a contribution to the official SimpleDownloader project, you agree that the contribution may be licensed as part of SimpleDownloader under this license or any future license chosen by the copyright holder.
+
+- You are allowed to modify or patch SimpleDownloader privately only for your own applications or internal use.
+
+
+2. Modified Versions and Redistribution
+
+You may modify and redistribute SimpleDownloader only if all of the following conditions are met:
+
+(a) The software must continue to be named "SimpleDownloader".
+
+(b) The original copyright owner and attribution notices must remain clearly visible.
+
+(d) The modified version must remain under this same license.
+
+(e) The modified version must not be presented as a separate, competing, or independently owned library, SDK, framework, package, plugin, module, or product.
+
+(f) You must clearly state that the version has been modified.
+
+(g) You may not remove, hide, or alter license notices, copyright notices, attribution notices, or ownership information.
+
+
+3. Restrictions
+
+You may not:
+
+(a) copy, publish, redistribute, sublicense, sell, rent, lease, or repackage SimpleDownloader as a separate, competing, or independently owned library, SDK, framework, plugin, module, package, or product under different names, except as allowed under Section 2;
+
+(b) publish or distribute modified versions of SimpleDownloader in violation of Section 2;
+
+(c) rebrand SimpleDownloader or make it available under another name;
+
+(d) use SimpleDownloader’s source code to create, publish, sell, or distribute a competing similar library, SDK, framework, or similar developer tool;
+
+(e) remove, hide, or alter copyright notices, license notices, attribution notices, or ownership information;
+
+(f) claim ownership of SimpleDownloader or its source code;
+
+(g) present any fork, copy, or modified version of SimpleDownloader as your own original library, SDK, framework, package, plugin, module, or product.
+
+
+4. Ownership
+
+SimpleDownloader and its source code remain the property of the copyright holder.
+
+
+5. No Warranty
+
+SimpleDownloader is provided "as is", without warranties of any kind.
+
+
+6. Termination
+
+If you violate this license, your permission to use SimpleDownloader ends immediately.
+
+
+7. Contact
+
+For permission beyond this license, contact the project owner.
