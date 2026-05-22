@@ -6,9 +6,9 @@ Copyright (c) 2026 Jeet Jati / Jeetarc
 
 1. Permission to Use
 
-- You are allowed to use SimpleDownloader as a dependency in applications, including commercial applications.
+- You are allowed to use SimpleDownloader as a dependency or as a supporting engine in applications, library, SDK, framework, plugin, module, package, or product including commercial.
 
-- You are allowed to published, distribute, monetized and sold applications that use SimpleDownloader as a dependency
+- You are allowed to published, distribute, monetized and sold applications, library, SDK, framework, plugin, module, package, or product that use SimpleDownloader as a dependency or as a supporting engine.
 
 - You allowed to fork SimpleDownloader on GitHub or other source-hosting platforms for review, testing, development, private/internal changes, bug fixes, experimentation, and contributions back to the official SimpleDownloader project.
 
@@ -39,19 +39,19 @@ You may modify and redistribute SimpleDownloader only if all of the following co
 
 You may not:
 
-(a) copy, publish, redistribute, sublicense, sell, rent, lease, or repackage SimpleDownloader as a separate, competing, or independently owned library, SDK, framework, plugin, module, package, or product under different names, except as allowed under Section 2;
+(a) copy, publish, redistribute, sublicense, sell, rent, lease, or repackage SimpleDownloader itself as a separate, competing, or independently owned library, SDK, framework, plugin, module, package, or product under different names, except as allowed under Section 2;
 
-(b) publish or distribute modified versions of SimpleDownloader in violation of Section 2;
+(b) publish or distribute modified versions of SimpleDownloader itself in violation of Section 2;
 
-(c) rebrand SimpleDownloader or make it available under another name;
+(c) rebrand SimpleDownloader itself or make it available under another name;
 
 (d) use SimpleDownloader’s source code to create, publish, sell, or distribute a competing similar library, SDK, framework, or similar developer tool;
 
 (e) remove, hide, or alter copyright notices, license notices, attribution notices, or ownership information;
 
-(f) claim ownership of SimpleDownloader or its source code;
+(f) claim ownership of SimpleDownloader itself or its source code;
 
-(g) present any fork, copy, or modified version of SimpleDownloader as your own original library, SDK, framework, package, plugin, module, or product.
+(g) present any fork, copy, or modified version of SimpleDownloader itself as your own original library, SDK, framework, package, plugin, module, or product.
 
 
 4. Ownership
