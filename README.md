@@ -1,8 +1,8 @@
 ## SimpleDownloader - Guide
 
-> a simple API for smart and modern downloads.
-
 [![](https://jitpack.io/v/jeetarc/SimpleDownloader.svg)](https://jitpack.io/#jeetarc/SimpleDownloader)
+
+> A simple API for smart and modern downloads.
 
 **Table of Contents**
 
