@@ -1,8 +1,8 @@
 ## SimpleDownloader - Guide
 
-> a simple API for smart and modern downloads.
-
 [![](https://jitpack.io/v/jeetarc/SimpleDownloader.svg)](https://jitpack.io/#jeetarc/SimpleDownloader)
+
+> A simple API for smart and modern downloads.
 
 **Table of Contents**
 
@@ -155,17 +155,17 @@ SimpleDownloader
     .setHeader(String, String) // Add HTTP header
     .setHeaders(Map<String, String>) // Add multiple HTTP headers
     .setCookies(String) // Add cookies
-    .setId(long) // Custom download ID
-    .setRetryCount(int) // Retry attempts on failure
+    .setId(long) // Custom download ID (default automatic ID)
+    .setRetryCount(int) // Retry attempts on failure (default 3)
     .setRetryPolicy(RetryPolicy) // Custom retry policy
-    .setConnectTimeout(int) // Connection timeout in ms
-    .setReadTimeout(int) // Read timeout in ms
-    .setProgressInterval(long) // Progress callback interval in ms
-    .setBufferSize(int) // Download buffer size in bytes
-    .setPriority(Priority) // Download priority
+    .setConnectTimeout(int) // Connection timeout in ms (default 60,000ms) 
+    .setReadTimeout(int) // Read timeout in ms (default 60,000ms) 
+    .setProgressInterval(long) // Progress callback interval in ms (default 300ms)
+    .setBufferSize(int) // Download buffer size in bytes (default 16kb)
+    .setPriority(Priority) // Download priority (default NORMAL)
     .wifiOnly(boolean) // Wi-Fi only mode
     .setLockedInQueue(boolean) // Lock download in queue
-    .setDeleteOnRemoval(boolean) // Delete file when task removed
+    .setDeleteOnRemoval(boolean) // Delete file when task removed (default disabled)
     .addListener(Listener) // Add callback listener
     .startDownload() // Start download and return DownloadTask
     .getTask() // Get last created task
