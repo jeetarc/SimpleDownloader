@@ -1,11 +1,11 @@
 package com.jeet.simpledownloader;
 
 /*
- * Copyright (c) 2026 Jeet Jati, under jeetarc.
- *
- * This source code is part of SimpleDownloader.
- */
- 
+* Copyright (c) 2026 Jeet / Jeetarc.
+*
+* This source code is part of SimpleDownloader.
+*/
+
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -14,6 +14,7 @@ import android.net.NetworkRequest;
 import android.os.Build;
 import java.util.ArrayList;
 import java.util.List;
+
 
 final class NetworkManager {
 	static final int NETWORK_TYPE_NONE = -1;
@@ -28,15 +29,18 @@ final class NetworkManager {
 	
 	private int downKbps = 0;
 	private int lastDownKbps = 0;
-	private boolean networkAvailable = false;
+	private volatile boolean networkAvailable = false;
 	private int networkType = NETWORK_TYPE_NONE;
 	private int lastHandledNetworkType = NETWORK_TYPE_NONE;
 	private boolean retryOnNetworkGain = true;
 	private ConnectivityManager connectivityManager;
 	private ConnectivityManager.NetworkCallback networkCallback;
+	private final SimpleDownloader downloader;
 	private final List<DownloadTask> waitingForPreferredNetwork = new ArrayList<>();
 	
-	NetworkManager() {}
+	NetworkManager(SimpleDownloader downloader) {
+		this.downloader = downloader;
+	}
 	
 	void register(Context appContext) {
 		if (appContext == null) return;
@@ -46,12 +50,11 @@ final class NetworkManager {
 	
 	boolean isNetworkAvailable() {
 		if (connectivityManager == null) return networkAvailable;
-		
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 			Network network = connectivityManager.getActiveNetwork();
 			if (network == null) return false;
 			NetworkCapabilities caps = connectivityManager.getNetworkCapabilities(network);
-			if (caps == null) return false;
+			return caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
 		}
 		
 		android.net.NetworkInfo info = connectivityManager.getActiveNetworkInfo();
@@ -107,10 +110,6 @@ final class NetworkManager {
 		return task.mWifiOnly && getNetworkType() != NETWORK_TYPE_WIFI;
 	}
 	
-	boolean isPreferredNetworkUnavailable(DownloadTask task) {
-		return shouldWaitForPreferredNetwork(task);
-	}
-	
 	void moveToWaitingForNetwork(DownloadTask task) {
 		if (task == null) return;
 		task.mSpeed = 0;
@@ -118,26 +117,17 @@ final class NetworkManager {
 		task.setStatus(Status.WAITING_FOR_NETWORK);
 		WaitingDecision decision;
 		
-		android.util.Log.d("NET_WAIT", 
-		"WAITING taskObj=" + System.identityHashCode(task) 
-		+ " id=" + task.mId 
-		+ " statusBefore=" + task.status 
-		+ " canRunNow=" + canRunNow(task)
-		+ " networkAvailable=" + isNetworkAvailable()
-		+ " networkType=" + getNetworkType());
-		
-		synchronized (SimpleDownloader.class) {
+		synchronized (downloader.mLock) {
 			decision = decideWaitingForNetwork(task);
-			
 			if (decision.addToPreferredWaiting) {
 				addWaitingForPreferredNetwork(task);
 			} else removeWaitingForPreferredNetwork(task);
 			
-			SimpleDownloader.sortTaskListLocked();
+			downloader.taskManager.sortTasksLocked();
 		}
 		
-		ListenerDispatcher.onWaitingForNetwork(task);
-		SlotHandler.finishTask(task, false, decision.releaseSlot);
+		EventDispatcher.onWaitingForNetwork(task);
+		downloader.slotManager.finishTask(task, false, decision.releaseSlot);
 	}
 	
 	boolean addWaitingForPreferredNetwork(DownloadTask task) {
@@ -165,8 +155,17 @@ final class NetworkManager {
 		return !waitingForPreferredNetwork.isEmpty();
 	}
 	
+	void shutdownLocked() {
+		waitingForPreferredNetwork.clear();
+		unregisterCallback();
+	}
+	
 	void release() {
-		if (!SimpleDownloader.sRegistry.isEmpty() || !waitingForPreferredNetwork.isEmpty() || SlotHandler.hasWork()) return;
+		if (!downloader.taskManager.isEmpty() || !waitingForPreferredNetwork.isEmpty() || downloader.slotManager.hasWork()) return;
+		unregisterCallback();
+	}
+	
+	private void unregisterCallback() {
 		if (connectivityManager != null && networkCallback != null) {
 			try {
 				connectivityManager.unregisterNetworkCallback(networkCallback);
@@ -220,26 +219,43 @@ final class NetworkManager {
 				if (networkType == lastHandledNetworkType && !speedChanged) return;
 				if (networkType != NETWORK_TYPE_UNKNOWN) lastHandledNetworkType = networkType;
 				
-				for (DownloadTask task : new ArrayList<>(SimpleDownloader.sRegistry.values())) {
-					if (task.status == Status.PAUSED) continue;
+				for (DownloadTask task : downloader.taskManager.snapshot()) {
+					if (task == null || task.status == Status.PAUSED) continue;
 					
-					if (speedChanged && (task.status == Status.DOWNLOADING || task.status == Status.CONNECTING)) {
-						task.mRefreshRequested = true;
-						task.cancelRunningCall();
-					}
-					
-					if (task.mWifiOnly && getNetworkType() != NETWORK_TYPE_WIFI) {
-						if (task.status == Status.DOWNLOADING || task.status == Status.CONNECTING) {
-							task.mNetworkPaused = true;
+					synchronized (downloader.mLock) {
+						final boolean active = task.isActive();
+                        final boolean hasRunningCall = task.mCurrentCall != null;
+						if (task.mWifiOnly && networkType != NETWORK_TYPE_WIFI) {
+							if (active) {
+								task.mNetworkPaused = true;
+								task.cancelRunningCall();
+								continue;
+							}
+							
+						} else if (task.status == Status.WAITING_FOR_NETWORK) {
+							if (retryOnNetworkGain && !waitingForPreferredNetwork.contains(task)) {
+								downloader.slotManager.resumeOccupiedWaiting(task);
+								continue;
+								
+							} else if (!retryOnNetworkGain) {
+								task.pause();
+								continue;
+							}
+						}
+						
+						if (speedChanged && hasRunningCall) {
+							task.mRefreshRequested = true;
 							task.cancelRunningCall();
 						}
-					} else if (task.status == Status.WAITING_FOR_NETWORK && retryOnNetworkGain && !waitingForPreferredNetwork.contains(task)) {
-						task.resumeOccupiedWaiting();
 					}
 				}
 				
-				synchronized (SimpleDownloader.class) {
-					SlotHandler.dispatchReadyTasks();
+				synchronized (downloader.mLock) {
+					if (SimpleDownloader.isAutoConcurrentLocked()) {
+						SimpleDownloader.autoConcurrencyController.resetLocked();
+						SimpleDownloader.autoConcurrencyController.ensureInitializedLocked();
+					}
+					downloader.slotManager.dispatchReadyTasks();
 				}
 			}
 		};
@@ -273,7 +289,7 @@ final class NetworkManager {
 		if (!isNetworkAvailable()) return new WaitingDecision(false, false);
 		
 		if (task.mWifiOnly && getNetworkType() != NETWORK_TYPE_WIFI) {
-			boolean hasRunnableQueuedTask = SlotHandler.hasRunnableQueuedTaskLocked();
+			boolean hasRunnableQueuedTask = downloader.slotManager.hasRunnableQueuedTaskLocked();
 			if (hasRunnableQueuedTask) return new WaitingDecision(true, true);
 			return new WaitingDecision(false, false);
 		}
