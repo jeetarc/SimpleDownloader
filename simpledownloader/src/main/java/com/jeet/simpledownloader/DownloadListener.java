@@ -108,7 +108,7 @@ public interface DownloadListener {
     *
     * @param id the task ID
     * @param attempt the retry attempt count
-    * @param task the task instance; use {@code getMaxRetries()} to get the maximum retry count
+    * @param task the task instance; use {@code getMaxRetryCount()} to get the maximum retry count
     */	
 	default void onRetry(long id, int attempt, DownloadTask task) {}
 	
