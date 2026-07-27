@@ -1,11 +1,11 @@
 package com.jeet.simpledownloader;
 
 /*
- * Copyright (c) 2026 Jeet Jati, under jeetarc.
- *
- * This source code is part of SimpleDownloader.
- */
- 
+* Copyright (c) 2026 Jeet / Jeetarc.
+*
+* This source code is part of SimpleDownloader.
+*/
+
 class DownloadRunnable implements Runnable, Comparable<DownloadRunnable> {
 	private final DownloadTask task;
 	private final long sequence;
@@ -17,7 +17,13 @@ class DownloadRunnable implements Runnable, Comparable<DownloadRunnable> {
 	
 	@Override
 	public void run() {
-		new DownloadWorker(task).run();
+		task.mWorkerRunning = true;
+		
+		try {
+			new DownloadWorker(task).run();
+		} finally {
+			task.mWorkerRunning = false;
+		}
 	}
 	
 	@Override
