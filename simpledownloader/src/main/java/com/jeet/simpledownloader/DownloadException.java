@@ -1,22 +1,30 @@
 package com.jeet.simpledownloader;
 
 /*
- * Copyright (c) 2026 Jeet Jati, under jeetarc.
- *
- * This source code is part of SimpleDownloader.
- */
- 
+* Copyright (c) 2026 Jeet / Jeetarc.
+*
+* This source code is part of SimpleDownloader.
+*/
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Use it to know about the exact the error that cause a download failure.
+ * Use {@code getType()} to know the type of the error,
+ * Use {@code getCause()} to know exact reason for the failure.
+ */
 public class DownloadException extends IOException {
 	
+    /**
+    * The category (type) of a error.
+    */	
 	public enum Type {
 		NETWORK_LOST, TIMEOUT, DNS_ERROR, SSL_ERROR,
 		HTTP_ERROR, ENOSPC, FILE_ERROR, STORAGE_PERMISSION_DENIED, 
-		OUTPUT_URI_INVALID, RANGE_NOT_SUPPORTED, EMPTY_RESPONSE, 
-		CANCELLED, UNKNOWN
+		OUTPUT_INVALID, RANGE_NOT_SUPPORTED, EMPTY_RESPONSE,
+		CHECKSUM_FAILED, CANCELLED, UNKNOWN
 	}
 	
 	private final Type type;
