@@ -59,24 +59,29 @@ dependencies {
 
 SimpleDownloader is built with Java 8 and compileSdk 35.
 
-## Android setup
+## Setup
 
 If you enable notifications, add:
-
 ```xml
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 ```
-
 On Android 13 and newer, request this permission at runtime.
 
-If you enable `enableForeground(true)`, also add:
-
+If you enableenable `enableForeground(true)`, also add:
 ```xml
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 ```
+Foreground mode can automatically enable notifications, also you can use `enableNotifications(true)`.
 
-Foreground mode can automatically enable notifications, also use can use `enableNotifications(true)`
+If using normal file path add storage permissions, add:
+``` XML
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+```
+These permissions are not needed when saving to app-specific folder.
+
+All other permissions are added by default.
 
 ## Quick start
 
