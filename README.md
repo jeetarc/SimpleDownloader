@@ -104,7 +104,6 @@ getContentResolver().takePersistableUriPermission(folderUri, flags);
 ### Download into a file-system folder
 
 ```java
-
 DownloadTask task = SimpleDownloader.with(context)
     .setOutput(folderPath FileName.AUTO)
     .setFileUrl(fileUrl)
@@ -187,7 +186,7 @@ onActiveChanged(...)
 onLifecycleChanged(...)
 ```
 
-`onStart()` can run again after resume, retry, etc. use `onLifecycleChanged()`. to know start or end for the full lifestyle.
+`onStart()` can run again on resume, retry, etc. use `onLifecycleChanged()`. to know start or end for the full lifestyle.
 
 You can also add listeners directly on a task:
 
@@ -326,26 +325,22 @@ for (DownloadTask task : restored) {
 ```
 
 ### Restore matching tasks
+`restoreTasks()` returns an empty list when no match.
 
 ```java
-List<DownloadTask> paused =
-    downloader.restoreTasks(TaskField.STATUS, Status.PAUSED);
+List<DownloadTask> paused = downloader.restoreTasks(TaskField.STATUS, Status.PAUSED);
 
-List<DownloadTask> videos =
-    downloader.restoreTasks(TaskField.MIME_TYPE, "video/mp4");
+List<DownloadTask> videos = downloader.restoreTasks(TaskField.MIME_TYPE, "video/mp4");
 
 List<DownloadTask> matchingUrl = downloader.restoreTasks(TaskField.FILE_URL, fileUrl);
 ```
-
-`restoreTasks()` returns an empty list when no match.
+`restoreTask()` returns a single the newest matching a single task, or `null` when no match.
 
 ```java
 DownloadTask task = downloader.restoreTask(TaskField.FILE_URL, fileUrl);
 
 if (task != null) task.resume();
 ```
-
-`restoreTask()` returns a single the newest matching a single task, or `null` when no match.
 
 Available fields:
 
@@ -515,7 +510,7 @@ DownloadTask task = SimpleDownloader.with(context)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
-DownloadNotification configuration is optional, only use `enableNotifications(true)` if you don't want to customize, it will use default config.
+`DownloadNotification` configuration is optional, only use `enableNotifications(true)` if you don't want to customize. It will use the default config.
 
 Run tasks using a foreground service:
 
@@ -543,7 +538,7 @@ notification.setThumbnailUrl(thumbnailUrl, thumbnailHeaders);
 
 ## Checksums
 
-Verify the completed file with algorithms supported by `MessageDigest`,like SHA-256, SHA-1, or MD5:
+Verify the completed file with algorithms supported by `MessageDigest`. Like SHA-256, SHA-1, or MD5:
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
@@ -608,10 +603,9 @@ DownloadTask task = SimpleDownloader.getTask(id);
 List<DownloadTask> all = SimpleDownloader.getTasks();
 List<DownloadTask> completed =
     SimpleDownloader.getTasks(Status.COMPLETED);
-List<DownloadTask> highPriority =
-    SimpleDownloader.getTasks(Priority.HIGH);
+List<DownloadTask> highPriority = SimpleDownloader.getTasks(Priority.HIGH);
 List<DownloadTask> videos =
-    SimpleDownloader.getTasks("video/mp4");
+SimpleDownloader.getTasks("video/mp4");
 
 int total = SimpleDownloader.getTotalCount();
 int active = SimpleDownloader.getActiveCount();
@@ -622,7 +616,7 @@ int concurrency = SimpleDownloader.getEffectiveMaxConcurrent();
 
 ## Error handling
 
-Failures exceptions are instance `DownloadException`:
+Failures exceptions are instance of `DownloadException`:
 
 ```java
 @Override
@@ -673,7 +667,7 @@ SimpleDownloader downloader = SimpleDownloader.with(context)
 
 Custom IDs are optional. SimpleDownloader generates an ID when `setId()` is not used. An active task cannot be replaced by another task with the same ID.
 
-Passing `0` for a connection or read timeout keeps the OkHttp default.
+Passing 0 for a connection or read timeout keeps the OkHttp default.
 
 Use your own HTTP client:
 
