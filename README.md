@@ -30,6 +30,7 @@ DownloadTask task = SimpleDownloader.with(context)
 - Progress, completion, and error notifications with action, thumbnail, etc.
 - Optional foreground execution
 - Custom OkHttpClient support
+- Custom task Comparator
 - RetryPolicy, timeouts, headers, cookies, checksums and many more
 - Minimum Android version: API 21
 
@@ -334,7 +335,7 @@ List<DownloadTask> videos = downloader.restoreTasks(TaskField.MIME_TYPE, "video/
 
 List<DownloadTask> matchingUrl = downloader.restoreTasks(TaskField.FILE_URL, fileUrl);
 ```
-`restoreTask()` returns a single the newest matching a single task, or `null` when no match.
+`restoreTask()` returns a single newest matching task, or `null` when no match.
 
 ```java
 DownloadTask task = downloader.restoreTask(TaskField.FILE_URL, fileUrl);
