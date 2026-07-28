@@ -12,6 +12,7 @@ DownloadTask task = SimpleDownloader.with(context)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
+Use only this for basic, simple file downloads. you can use `.setOutput(folderUri, FileName.AUTO, MimeType.AUTO)' too.
 
 ## Features
 
