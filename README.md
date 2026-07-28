@@ -16,20 +16,19 @@ DownloadTask task = SimpleDownloader.with(context)
 ## Features
 
 - Multiple downloads with queue and priority support
-- Fixed or automatic download concurrency
+- automatic download concurrency
 - Pause, resume, cancel, retry, remove, requeue, and force download
-- Reliable resume using HTTP range requests
+- Resume using HTTP range requests
 - Network loss handling and Wi-Fi-only downloads
-- Task persistence with filtered restoration
+- Task persistence and restoration with filter.
 - Android scoped-storage support using folder and document URIs
-- File-system path output for app-accessible directories
-- Automatic file-name and MIME-type resolution
+- File-system path output
+- Automatic file name and MIME type resolution
 - Progress, speed, ETA, status, and lifecycle callbacks
-- Optional progress, completion, and error notifications
+- Progress, completion, and error notifications with action, thumbnail, etc.
 - Optional foreground execution
-- Configurable retries, timeouts, headers, cookies, and checksums
 - Custom OkHttpClient support
-- And many more
+- RetryPolicy, timeouts, headers, cookies, checksums and many more
 - Minimum Android version: API 21
 
 ## Installation
@@ -570,7 +569,7 @@ MimeType.FROM_NAME
 
 `AUTO` use the URL, response headers, file extension, content type to resolve name and MIME.
 
-## get Task info:
+## Task info
 
 ```java
 task.getId();
