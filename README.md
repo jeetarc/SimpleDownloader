@@ -8,11 +8,10 @@ The simple API:
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(folderPath, FileName.AUTO)
+    .setOutput(folderPath, FileName.AUTO) // or .setOutput(folderUri, FileName.AUTO, MimeType.AUTO)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
-Use only this for basic, simple file downloads. you can use `.setOutput(folderUri, FileName.AUTO, MimeType.AUTO)` too.
 
 ## Features
 
