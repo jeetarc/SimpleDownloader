@@ -528,6 +528,8 @@ SimpleDownloader.with(context)
     .startDownload();
 ```
 
+SimpleDownloader has built in thumbnail system for notifications, it can generate a thumbnail from a video, image, audio (album art), APK, PDF automatically.
+
 You can also set a thumbnail:
 
 ```java
@@ -537,7 +539,9 @@ notification.setThumbnail(bitmap);
 Or load it from a URL:
 
 ```java
-notification.setThumbnailUrl(thumbnailUrl, thumbnailHeaders);
+notification.setThumbnailUrl(thumbnailUrl, thumbHeaders);
+
+// pass null for headers, if it not available
 ```
 
 `DownloadNotification` can configure the channel, importance, lock-screen visibility, sound, vibration, color, update interval, actions, etc.
