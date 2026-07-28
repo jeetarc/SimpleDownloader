@@ -1,6 +1,8 @@
 # SimpleDownloader
 
 [![JitPack](https://jitpack.io/v/jeetarc/SimpleDownloader.svg)](https://jitpack.io/#jeetarc/SimpleDownloader)
+[![GitHub release](https://img.shields.io/github/v/release/jeetarc/SimpleDownloader?include_prereleases)](https://github.com/jeetarc/SimpleDownloader/releases)
+![Android API](https://img.shields.io/badge/Android-API%2021%2B-3DDC84?logo=android&logoColor=white)
 
 SimpleDownloader is an Android download library project. It handles the parts that usually make downloading difficult: queues, concurrent downloads, pause and resume, unstable networks, scoped storage, task persistence, foreground, notifications, progress updates, etc.
 
@@ -145,8 +147,7 @@ All `DownloadListener` callbacks run on the main thread. Every method is optiona
 ```java
 DownloadListener listener = new DownloadListener() {
     @Override
-    public void onProgress(long id, int progress,long speed, long etaMs,DownloadTask task
-    ) {
+    public void onProgress(long id, int progress,long speed, long etaMs,DownloadTask task) {
         progressBar.setProgress(progress);
         speedText.setText(Formator.formatSpeed(speed));
         etaText.setText(Formator.formatEta(etaMs));
@@ -158,8 +159,7 @@ DownloadListener listener = new DownloadListener() {
     }
 
     @Override
-    public void onError(long id, Uri outputUri, Exception error, DownloadTask task
-    ) {
+    public void onError(long id, Uri outputUri, Exception error, DownloadTask task) {
         // The download failed.
     }
 };
@@ -206,7 +206,6 @@ TaskListObserver observer = new TaskListObserver() {
     @Override
     public void onTasksChanged(List<DownloadTask> tasks) {
         // The list order changed
-        adapter.submitList(tasks);
     }
 
     @Override
@@ -313,7 +312,8 @@ SimpleDownloader downloader = SimpleDownloader.with(this)
     .addObserver(observer);
 
 List<DownloadTask> restored = downloader.restoreTasks();
-```java
+```
+
 Active tasks are restored as paused. Resume the tasks you want to continue:
 
 ```java
@@ -334,20 +334,18 @@ List<DownloadTask> paused =
 List<DownloadTask> videos =
     downloader.restoreTasks(TaskField.MIME_TYPE, "video/mp4");
 
-List<DownloadTask> matchingUrl =
-    downloader.restoreTasks(TaskField.FILE_URL, fileUrl);
+List<DownloadTask> matchingUrl = downloader.restoreTasks(TaskField.FILE_URL, fileUrl);
 ```
 
 `restoreTasks()` returns an empty list when no match.
 
 ```java
-DownloadTask task =
-    downloader.restoreTask(TaskField.FILE_URL, fileUrl);
+DownloadTask task = downloader.restoreTask(TaskField.FILE_URL, fileUrl);
 
 if (task != null) task.resume();
 ```
 
-`restoreTask()` returns the newest matching a single task, or `null` when no match.
+`restoreTask()` returns a single the newest matching a single task, or `null` when no match.
 
 Available fields:
 
