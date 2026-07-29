@@ -268,6 +268,58 @@ Note:
 - `remove()` deletes the output only when `setDeleteOnRemoval(true)` is enabled.
 - `forceDownload()` starts a queued task even when it is locked. It doesn't care about concurrency limit
 
+## Task info
+
+```java
+task.getId();
+task.getFileUrl();
+task.getFileName();
+task.getMimeType();
+
+task.getOutputUri();
+task.getOutputFile();
+task.getOutputDocumentFile();
+task.getOutputPath();
+task.getOutputFolderPath();
+
+task.getProgress();
+task.getDownloadedBytes();
+task.getTotalBytes();
+task.getSpeed();
+task.getEtaMs();
+
+task.getStatus();
+task.getPriority();
+task.getError();
+task.getCreatedAt();
+task.getMaxRetryCount();
+
+task.isActive();
+task.isQueued();
+task.isPaused();
+task.isWaitingForNetwork();
+task.isFinished();
+task.isOccupiedSlot();
+```
+
+get task from registry:
+
+```java
+DownloadTask task = SimpleDownloader.getTask(id);
+List<DownloadTask> all = SimpleDownloader.getTasks();
+List<DownloadTask> completed =
+    SimpleDownloader.getTasks(Status.COMPLETED);
+List<DownloadTask> highPriority = SimpleDownloader.getTasks(Priority.HIGH);
+List<DownloadTask> videos =
+SimpleDownloader.getTasks("video/mp4");
+
+int total = SimpleDownloader.getTotalCount();
+int active = SimpleDownloader.getActiveCount();
+int queued = SimpleDownloader.getQueuedCount();
+int occupied = SimpleDownloader.getOccupiedCount();
+int concurrency = SimpleDownloader.getEffectiveMaxConcurrent();
+```
+
 ## Reuse a configured instance
 
 You can configure a `SimpleDownloader` instance once inside `onCreate()` and reuse it:
@@ -375,8 +427,7 @@ for (DownloadTask task : restored) {
 ```
 
 ### Restore matching tasks
-`restoreTasks()` returns an empty list when no match.
-
+`restoreTasks()` returns an empty list when no match:
 ```java
 List<DownloadTask> paused = downloader.restoreTasks(TaskField.STATUS, Status.PAUSED);
 
@@ -384,8 +435,8 @@ List<DownloadTask> videos = downloader.restoreTasks(TaskField.MIME_TYPE, "video/
 
 List<DownloadTask> matchingUrl = downloader.restoreTasks(TaskField.FILE_URL, fileUrl);
 ```
-`restoreTask()` returns a single newest matching task, or `null` when no match.
 
+`restoreTask()` returns a single newest matching task, or `null` when no match:
 ```java
 DownloadTask task = downloader.restoreTask(TaskField.FILE_URL, fileUrl);
 
@@ -615,58 +666,6 @@ MimeType.FROM_NAME
 ```
 
 `AUTO` use the URL, response headers, file extension, content type to resolve name and MIME.
-
-## Task info
-
-```java
-task.getId();
-task.getFileUrl();
-task.getFileName();
-task.getMimeType();
-
-task.getOutputUri();
-task.getOutputFile();
-task.getOutputDocumentFile();
-task.getOutputPath();
-task.getOutputFolderPath();
-
-task.getProgress();
-task.getDownloadedBytes();
-task.getTotalBytes();
-task.getSpeed();
-task.getEtaMs();
-
-task.getStatus();
-task.getPriority();
-task.getError();
-task.getCreatedAt();
-task.getMaxRetryCount();
-
-task.isActive();
-task.isQueued();
-task.isPaused();
-task.isWaitingForNetwork();
-task.isFinished();
-task.isOccupiedSlot();
-```
-
-get task from registry:
-
-```java
-DownloadTask task = SimpleDownloader.getTask(id);
-List<DownloadTask> all = SimpleDownloader.getTasks();
-List<DownloadTask> completed =
-    SimpleDownloader.getTasks(Status.COMPLETED);
-List<DownloadTask> highPriority = SimpleDownloader.getTasks(Priority.HIGH);
-List<DownloadTask> videos =
-SimpleDownloader.getTasks("video/mp4");
-
-int total = SimpleDownloader.getTotalCount();
-int active = SimpleDownloader.getActiveCount();
-int queued = SimpleDownloader.getQueuedCount();
-int occupied = SimpleDownloader.getOccupiedCount();
-int concurrency = SimpleDownloader.getEffectiveMaxConcurrent();
-```
 
 ## Error handling
 
