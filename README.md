@@ -308,7 +308,7 @@ List<DownloadTask> tasks = downloader.restoreTasks();
 
 Other common settings, such as retry policy, user agent, priority, Wi-Fi-only mode, notifications, foreground execution, etc can also be configured on the same `downloader` instance, instead of being set again for every download.
 
-> File URL, output destination, and custom ID should be set again and again before starting each task.
+> File URL, output destination, and custom ID should be set again before starting each task.
 
 
 ## Global controls
