@@ -111,7 +111,7 @@ getContentResolver().takePersistableUriPermission(folderUri, flags);
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(folderPath FileName.AUTO)
+    .setOutput(folderPath, FileName.AUTO)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
@@ -152,14 +152,14 @@ All `DownloadListener` callbacks run on the main thread. Every method is optiona
 ```java
 DownloadListener listener = new DownloadListener() {
     @Override
-    public void onProgress(long id, int progress,long speed, long etaMs,DownloadTask task) {
+    public void onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {
         progressBar.setProgress(progress);
         speedText.setText(Formator.formatSpeed(speed));
         etaText.setText(Formator.formatEta(etaMs));
     }
 
     @Override
-    public void onComplete(long id, Uri outPut(), ownloadTask task) {
+    public void onComplete(long id, Uri outputUri, DownloadTask task) {
         // The download finished successfully.
     }
 
@@ -266,6 +266,49 @@ Note:
 - `remove()` removes the task from SimpleDownloader register.
 - `remove()` deletes the output only when `setDeleteOnRemoval(true)` is enabled.
 - `forceDownload()` starts a queued task even when it is locked. It doesn't care about concurrency limit
+
+## Reuse a configured instance
+
+You can configure a `SimpleDownloader` instance once inside `onCreate()` and reuse it throughout the same Activity:
+
+```java
+private SimpleDownloader downloader;
+
+@Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+
+    downloader = SimpleDownloader.with(this)
+        .setMaxConcurrent(3)
+        .setConnectTimeout(30_000)
+        .setReadTimeout(30_000)
+        .setProgressInterval(300)
+        .setBufferSize(16 * 1024)
+        .enableHistory(true);
+}
+
+// You can configure all fields you want be the same across downloads.
+```
+
+Then use the configured instance whenever you start a download:
+
+```java
+DownloadTask task = downloader
+    .setOutput(folderUri, fileName, mimeType)
+    .setFileUrl(fileUrl)
+    .startDownload();
+```
+
+You can also use the same instance to restore tasks:
+
+```java
+List<DownloadTask> tasks = downloader.restoreTasks();
+```
+
+Other common settings, such as retry policy, user agent, priority, Wi-Fi-only mode, notifications, foreground execution, etc can also be configured on the same `downloader` instance, instead of being set again for every download.
+
+File URL, output destination, and custom ID should be set again and again before starting each task.
+
 
 ## Global controls
 
