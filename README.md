@@ -74,12 +74,13 @@ If you enable `enableForeground(true)`, also add:
 ```
 Foreground mode can automatically enable notifications, also you can use `enableNotifications(true)`.
 
-If using normal file path add storage permissions:
+If using normal file path, add:
 ``` XML
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 ```
-These permissions are not needed when saving to app-specific folder or using folderUri via Storage Access Framework.
+And request the permission at runtime.
+Storage permissions are not needed when saving to app-specific folder or using folderUri via Storage Access Framework.
 
 > All other permissions are added by default.
 
