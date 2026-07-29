@@ -81,7 +81,7 @@ If using normal file path add storage permissions:
 ```
 These permissions are not needed when saving to app-specific folder or using folderUri via Storage Access Framework.
 
-All other permissions are added by default.
+> All other permissions are added by default.
 
 ## Quick start
 
@@ -107,7 +107,7 @@ int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
 getContentResolver().takePersistableUriPermission(folderUri, flags);
 ```
 
-### Download into a file-system folder
+**Download into a file system folder:**
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
@@ -116,7 +116,7 @@ DownloadTask task = SimpleDownloader.with(context)
     .startDownload();
 ```
 
-### Use a fixed name and MIME when known.
+**Use a fixed name and MIME when known:**
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
@@ -125,7 +125,7 @@ DownloadTask task = SimpleDownloader.with(context)
     .startDownload();
 ```
 
-### Overwrite a file
+**Overwrite a file:**
 
 Use a document URI:
 
@@ -269,7 +269,7 @@ Note:
 
 ## Reuse a configured instance
 
-You can configure a `SimpleDownloader` instance once inside `onCreate()` and reuse it throughout the same Activity:
+You can configure a `SimpleDownloader` instance once inside `onCreate()` and reuse it:
 
 ```java
 private SimpleDownloader downloader;
@@ -307,7 +307,7 @@ List<DownloadTask> tasks = downloader.restoreTasks();
 
 Other common settings, such as retry policy, user agent, priority, Wi-Fi-only mode, notifications, foreground execution, etc can also be configured on the same `downloader` instance, instead of being set again for every download.
 
-File URL, output destination, and custom ID should be set again and again before starting each task.
+> File URL, output destination, and custom ID should be set again and again before starting each task.
 
 
 ## Global controls
