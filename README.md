@@ -85,7 +85,7 @@ These permissions are not needed when saving to app-specific folder or using fol
 
 ## Quick start
 
-### Download into a selected folder
+**Download into a selected folder:**
 
 Using a folder URI from folder picker:
 
