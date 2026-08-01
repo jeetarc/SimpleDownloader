@@ -49,7 +49,7 @@ public final class ThumbLoader {
 	
 	public interface Callback {
 		void onThumbnailReady(long id, Bitmap bitmap);
-		default void onThumbnailUnavailable(long id) {}
+		void onThumbnailUnavailable(long id);
 	}
 	
 	public ThumbLoader(Context context) {
