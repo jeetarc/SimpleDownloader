@@ -16,10 +16,10 @@ import java.util.Comparator;
 import com.jeet.simpledownloader.thumbnail.ThumbLoader;
 
 /**
- * Main entry point for starting, restoring, and managing downloads.
- *
- * <p>Use {@code with(context)} to create and configure download requests.</p>
- */
+* Main entry point for starting, restoring, and managing downloads.
+*
+* <p>Use {@code with(context)} to create and configure download requests.</p>
+*/
 public class SimpleDownloader {
 	public static final int NETWORK_TYPE_NONE = NetworkManager.NETWORK_TYPE_NONE;
 	public static final int NETWORK_TYPE_UNKNOWN = NetworkManager.NETWORK_TYPE_UNKNOWN;
@@ -319,6 +319,7 @@ public class SimpleDownloader {
 		synchronized (S_LOCK) {
 			if (sShuttingDown) throw new IllegalStateException("SimpleDownloader is shutting down.");
 			if (sDefault != null) return;
+			
 			sAppContext = context.getApplicationContext();
 			sShuttingDown = false;
 			SimpleDownloader owner = new SimpleDownloader(sAppContext);
@@ -554,19 +555,14 @@ public class SimpleDownloader {
 		return taskManager.getTasks();
 	}
 	
-	public static List<DownloadTask> getTasks(Status status) {
+	public static <T> DownloadTask getTask(TaskField<T> field, T value) {
 		getDefaultDownloader();
-		return taskManager.getTasks(status);
+		return taskManager.getTask(field, value);
 	}
 	
-	public static List<DownloadTask> getTasks(String mimeType) {
+	public static <T> List<DownloadTask> getTasks(TaskField<T> field, T value) {
 		getDefaultDownloader();
-		return taskManager.getTasks(mimeType);
-	}
-	
-	public static List<DownloadTask> getTasks(Priority priority) {
-		getDefaultDownloader();
-		return taskManager.getTasks(priority);
+		return taskManager.getTasks(field, value);
 	}
 	
 	public static int getTotalCount() {
@@ -616,8 +612,8 @@ public class SimpleDownloader {
 			return getEffectiveMaxConcurrentLocked();
 		}
 	}
-    
-    public static boolean isDownloading(long id) {
+	
+	public static boolean isDownloading(long id) {
 		getDefaultDownloader();
 		return taskManager.isDownloading(id);
 	}
@@ -641,8 +637,8 @@ public class SimpleDownloader {
 		getDefaultDownloader();
 		return networkManager != null && networkManager.isNetworkAvailable();
 	}
-    
-    public boolean areNotificationsEnabled() {
+	
+	public boolean areNotificationsEnabled() {
 		return mNotificationsEnabled;
 	}
 	
