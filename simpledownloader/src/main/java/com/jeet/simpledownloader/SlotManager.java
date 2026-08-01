@@ -18,6 +18,7 @@ final class SlotManager {
 	private DownloadExecutor executor;
 	private final List<DownloadTask> heldQueue = new ArrayList<DownloadTask>();
 	private final HashSet<DownloadTask> occupiedSlots = new HashSet<DownloadTask>();
+	private final HashSet<DownloadTask> forcedTasks = new HashSet<DownloadTask>();
 	private final AtomicLong sequence = new AtomicLong(0);
 	
 	private static final Comparator<DownloadTask> QUEUE_ORDER = new Comparator<DownloadTask>() {
@@ -96,7 +97,7 @@ final class SlotManager {
 				}
 				
 				if (!downloader.networkManager.canRunNow(task)) continue;
-				if (!hasFreeSlotLocked() && !hasOccupiedSlotLocked(task)) break;
+				if (!task.mForceDownload && !hasFreeSlotLocked() && !hasOccupiedSlotLocked(task)) continue;
 				downloader.networkManager.getWaitingForPreferredNetwork().remove(i);
 				i--;
 				enqueueOrSubmitLocked(task, true);
@@ -116,13 +117,11 @@ final class SlotManager {
 				continue;
 			}
 			
-			if (!task.mLockedInQueue && (hasFreeSlotLocked() || hasOccupiedSlotLocked(task))) {
+			if (!task.mLockedInQueue && (task.mForceDownload || hasFreeSlotLocked() || hasOccupiedSlotLocked(task))) {
 				heldQueue.remove(i);
 				i--;
 				submitTaskLocked(task);
 			}
-			
-			if (!hasFreeSlotLocked()) break;
 		}
 		
 		downloader.taskManager.sortTasksLocked();
@@ -149,12 +148,13 @@ final class SlotManager {
 	
 	void holdTaskLocked(final DownloadTask task) {
 		if (task == null) return;
+		boolean wasAlreadyQueued = task.status == Status.QUEUED;
 		removeFromExecutorQueueLocked(task);
 		releaseSlotLocked(task);
 		if (!heldQueue.contains(task)) heldQueue.add(task);
 		task.setStatus(Status.QUEUED);
 		sortHeldQueueLocked();
-		EventDispatcher.onQueued(task);
+		if (!wasAlreadyQueued) EventDispatcher.onQueued(task);
 	}
 	
 	boolean pauseRestoredTaskLocked(DownloadTask task) {
@@ -190,15 +190,18 @@ final class SlotManager {
 			return;
 		}
 		
-		ensureExecutorLocked();
 		removeFromExecutorQueueLocked(task);
 		task.clearFuture();
 		
-		if (!occupySlotLocked(task)) {
+		if (task.mForceDownload) {
+			forcedTasks.add(task);
+			
+		} else if (!occupySlotLocked(task)) {
 			holdTaskLocked(task);
 			return;
 		}
 		
+		ensureExecutorLocked();
 		startPendingManualRetryLocked(task);
 		task.setFuture(executor.submitTask(task, sequence.incrementAndGet()));
 	}
@@ -215,7 +218,10 @@ final class SlotManager {
 				return;
 			}
 			
-			if (!hasOccupiedSlotLocked(task) && !occupySlotLocked(task)) {
+			if (task.mForceDownload) {
+				forcedTasks.add(task);
+				
+			} else if (!hasOccupiedSlotLocked(task) && !occupySlotLocked(task)) {
 				holdTaskLocked(task);
 				return;
 			}
@@ -257,8 +263,12 @@ final class SlotManager {
 	boolean removeFromExecutorQueueLocked(DownloadTask task) {
 		if (task == null || executor == null) return false;
 		if (!executor.removeTask(task)) return false;
+		
 		task.clearFuture();
 		releaseSlotLocked(task);
+		boolean removedForced = forcedTasks.remove(task);
+		if (removedForced && !executor.isShutdown()) ensureExecutorLocked();
+		
 		return true;
 	}
 	
@@ -289,13 +299,15 @@ final class SlotManager {
 	}
 	
 	void ensureExecutorLocked() {
-		int max = SimpleDownloader.isAutoConcurrentLocked() ? SimpleDownloader.AUTO_MAX_SLOT : SimpleDownloader.getEffectiveMaxConcurrentLocked();
+		int normalThreads = SimpleDownloader.isAutoConcurrentLocked() ? SimpleDownloader.AUTO_MAX_SLOT : SimpleDownloader.getEffectiveMaxConcurrentLocked();
+		int maxThreads = normalThreads + forcedTasks.size();
+		
 		if (executor == null || executor.isShutdown()) {
-			executor = new DownloadExecutor(max);
+			executor = new DownloadExecutor(maxThreads);
 			return;
 		}
 		
-		executor.setMaxThreads(max);
+		executor.setMaxThreads(maxThreads);
 	}
 	
 	void sortHeldQueueLocked() {
@@ -326,6 +338,7 @@ final class SlotManager {
 	DownloadExecutor shutdownLocked() {
 		heldQueue.clear();
 		occupiedSlots.clear();
+		forcedTasks.clear();
 		DownloadExecutor oldExecutor = executor;
 		
 		if (oldExecutor != null) {
@@ -341,15 +354,23 @@ final class SlotManager {
 		
 		synchronized (downloader.mLock) {
 			task.clearFuture();
+			boolean forcedTaskStopped = forcedTasks.remove(task);
 			downloader.taskManager.clearAutoSpeedLocked(task);
+			if (task.isFinished()) task.clearFinishedRuntimeData();
 			heldQueue.remove(task);
 			downloader.networkManager.getWaitingForPreferredNetwork().remove(task);
+			
 			if (releaseSlot) releaseSlotLocked(task);
+			if (forcedTaskStopped && executor != null && !executor.isShutdown()) ensureExecutorLocked();
 			
 			if (removeTask) {
 				if (downloader.taskManager.isCurrentTaskLocked(task)) {
+					
 					if (!downloader.mEnableHistory) {
 						if (downloader.taskDatabase != null) downloader.taskDatabase.removeTask(task.mId);
+						
+					} else if (downloader.taskDatabase != null && (task.status == Status.COMPLETED || task.status == Status.CANCELLED)) {
+						downloader.taskDatabase.clearFinishedInternalData(task.mId);
 					}
 				}
 			}
