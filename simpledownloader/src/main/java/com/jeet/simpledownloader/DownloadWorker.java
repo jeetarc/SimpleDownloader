@@ -15,7 +15,6 @@ import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import javax.net.ssl.SSLException;
 import android.graphics.Bitmap;
-
 import com.jeet.simpledownloader.thumbnail.ThumbLoader;
 import com.jeet.simpledownloader.util.SpeedHelper;
 import com.jeet.simpledownloader.util.EtaHelper;
@@ -26,9 +25,9 @@ final class DownloadWorker {
 	private final SpeedHelper speedHelper = new SpeedHelper();
 	private final EtaHelper etaHelper = new EtaHelper();
 	private boolean stopHandled = false;
+	
 	private static final long OUTPUT_CHECK_INTERVAL = 8000;
-	private static final long SYNC_INTERVAL_MS = 3000;
-	private static final long SYNC_BYTES_THRESHOLD = 65536;
+	private static final long SYNC_INTERVAL_MS = 4000;
 	private static final int MAX_REFRESH = 6;
 	
 	DownloadWorker(DownloadTask t) {
@@ -245,9 +244,11 @@ final class DownloadWorker {
 			task.setStatus(Status.DOWNLOADING);
 			byte[] buffer = new byte[task.mBufferSize];
 			long total = resumeBase;
-			long lastBytesReported = -1;
-			long lastUpdateTime = 0;
-			long lastOutputCheckTime = 0;
+			long lastProgressBytes = -1L;
+			long lastProgressUpdateTime = 0L;
+			long lastNotificationUpdateTime = 0L;
+			long lastOutputCheckTime = 0L;
+			long notificationUpdateInterval = task.mNotification != null ? task.mNotification.notificationUpdateIntervalMs : 1000L;
 			int len;
 			
 			while ((len = connection.input.read(buffer)) != -1) {
@@ -259,25 +260,36 @@ final class DownloadWorker {
 				out.write(buffer, 0, len);
 				total += len;
 				task.mBytesDownloaded = total;
-				requestThumbnail(total, false);
 				long now = System.currentTimeMillis();
-				long speed = speedHelper.update(total);
-				task.mSpeed = speed;
-				syncAfterInterval(total, totalBytes, speed);
+				boolean progressDue = total != lastProgressBytes && (task.mDownloader.mProgressInterval <= 0L || now - lastProgressUpdateTime >= task.mDownloader.mProgressInterval);
+				boolean notificationDue = task.mNotification != null && task.mDownloader.areNotificationsEnabled() && !task.mNotificationDismissed && (notificationUpdateInterval <= 0L || now - lastNotificationUpdateTime >= notificationUpdateInterval);
 				
-				if (total != lastBytesReported && (task.mDownloader.mProgressInterval == 0 || now - lastUpdateTime >= task.mDownloader.mProgressInterval)) {
-					lastUpdateTime = now;
-					lastBytesReported = total;
-					task.mProgress = totalBytes > 0 ? (int) Math.min(100, (total * 100) / totalBytes) : 0;
+				if (progressDue || notificationDue) {
+					task.mProgress = totalBytes > 0L ? (int) Math.min(100L, (total * 100L) / totalBytes) : 0;
+					long speed = speedHelper.update(total);
+					task.mSpeed = speed;
 					task.mEta = etaHelper.update(speed, total, totalBytes);
-					EventDispatcher.onProgress(task);
-					recordAutoSpeedSample(speed);
+					
+					if (notificationDue) {
+						lastNotificationUpdateTime = now;
+						requestThumbnail(total, false);
+						DownloadService.onTaskProgress(task);
+					}
+					
+					if (progressDue) {
+						lastProgressUpdateTime = now;
+						lastProgressBytes = total;
+						EventDispatcher.onProgress(task);
+						recordAutoSpeedSample(speed);
+					}
 				}
 				
 				if (now - lastOutputCheckTime >= OUTPUT_CHECK_INTERVAL) {
 					lastOutputCheckTime = now;
 					if (!OutputResolver.isOutputValid(task)) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Output file was deleted, corrupted, or became invalid.", -1, false);
 				}
+				
+				syncAfterInterval(total, totalBytes, now);
 			}
 			
 			out.flush();
@@ -325,6 +337,21 @@ final class DownloadWorker {
 		task.setStatus(Status.FAILED);
 		EventDispatcher.onError(task, error);
 		task.mDownloader.slotManager.finishTask(task, true, true);
+	}
+	
+	private void syncAfterInterval(long bytesDownloaded, long totalBytes, long now) {
+		if (bytesDownloaded == task.mLastSyncBytes) return;
+		if (now - task.mLastSyncTime >= SYNC_INTERVAL_MS) syncNow(bytesDownloaded, totalBytes);
+	}
+	
+	private void syncNow(long bytesDownloaded, long totalBytes) {
+		task.mLastSyncTime = System.currentTimeMillis();
+		task.mLastSyncBytes = bytesDownloaded;
+		int progress = totalBytes > 0 ? (int) Math.min(100, (bytesDownloaded * 100L) / totalBytes) : 0;
+		
+		if (task.mDownloader.taskDatabase != null) {
+			task.mDownloader.taskDatabase.updateResumeData(task.mId, bytesDownloaded, totalBytes, progress, task.mETag, task.mLastModified);
+		}
 	}
 	
 	private void verifyChecksum() throws Exception {
@@ -391,19 +418,6 @@ final class DownloadWorker {
 		
 		task.mChecksumFailed = false;
 		if (task.mDownloader.taskDatabase != null) task.mDownloader.taskDatabase.updateChecksumFailed(task.mId, false);
-	}
-	
-	private void syncAfterInterval(long bytesDownloaded, long totalBytes, long speed) {
-		long now = System.currentTimeMillis();
-		if (now - task.mLastSyncTime >= SYNC_INTERVAL_MS || bytesDownloaded - task.mLastSyncBytes >= SYNC_BYTES_THRESHOLD) {
-			syncNow(bytesDownloaded, totalBytes);
-		}
-	}
-	
-	private void syncNow(long bytesDownloaded, long totalBytes) {
-		task.mLastSyncTime = System.currentTimeMillis();
-		task.mLastSyncBytes = bytesDownloaded;
-		if (task.mDownloader.taskDatabase != null) task.mDownloader.taskDatabase.updateResumeData(task.mId, bytesDownloaded, totalBytes, task.mProgress, task.mETag, task.mLastModified);
 	}
 	
 	private Exception mapException(Exception error) {
