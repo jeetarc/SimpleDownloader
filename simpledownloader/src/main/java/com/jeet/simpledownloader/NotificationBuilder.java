@@ -1,11 +1,10 @@
 package com.jeet.simpledownloader;
 
 /*
-* Copyright (c) 2026 Jeet Jati / Jeetarc.
+* Copyright (c) 2026 Jeet / Jeetarc.
 *
 * This source code is part of SimpleDownloader and licenced under SimpleDownloader Licence - v1.0.
 */
-
 
 import android.app.Notification;
 import android.app.NotificationChannel;
