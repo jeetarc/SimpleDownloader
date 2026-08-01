@@ -22,9 +22,13 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import com.jeet.simpledownloader.util.Formator;
 import com.jeet.simpledownloader.thumbnail.ThumbLoader;
 import okhttp3.Call;
+
 
 /**
 * DownloadService is used internally for notifications and foreground execution.
@@ -42,13 +46,13 @@ public final class DownloadService extends Service {
 	static final String ACTION_DISMISS = "com.jeet.simpledownloader.action.DISMISS";
 	static final String EXTRA_TASK_ID = "SimpleDownloader_task_id";
 	private static volatile DownloadService runningService;
+	private final ExecutorService notificationExecutor = Executors.newSingleThreadExecutor();
 	private NotificationManager notificationManager;
 	private NotificationBuilder notificationBuilder;
 	private boolean foregroundStarted;
 	
 	private final Set<Long> groupTasks = Collections.synchronizedSet(new HashSet<Long>());
 	private final Set<Long> foregroundTasks = Collections.synchronizedSet(new HashSet<Long>());
-	private final Map<Long, Long> lastNotifyTime = new LinkedHashMap<Long, Long>();
 	private final Map<Long, Bitmap> thumbnails = new LinkedHashMap<Long, Bitmap>();
 	private final Map<Long, NotificationBuilder> taskNotificationBuilders = new LinkedHashMap<Long, NotificationBuilder>();
 	
@@ -77,9 +81,17 @@ public final class DownloadService extends Service {
 		}
 	}
 	
-	static void onTaskProgress(DownloadTask task) {
-		DownloadService service = runningService;
-		if (service != null) service.handleProgress(task);
+	static void onTaskProgress(final DownloadTask task) {
+		final DownloadService service = runningService;
+		if (service == null || task == null) return;
+		
+		service.executeNotificationWork(new Runnable() {
+			@Override
+			public void run() {
+				if (runningService != service) return;
+				service.handleProgress(task);
+			}
+		});
 	}
 	
 	static void onTaskPaused(DownloadTask task) {
@@ -175,9 +187,7 @@ public final class DownloadService extends Service {
 		Intent intent = new Intent(app, DownloadService.class);
 		intent.setAction(action);
 		intent.putExtra(EXTRA_TASK_ID, task.mId);
-		boolean foreground =
-		task.mDownloader.isForegroundEnabled()
-		&& Build.VERSION.SDK_INT >= Build.VERSION_CODES.O;
+		boolean foreground = task.mDownloader.isForegroundEnabled() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O;
 		
 		try {
 			if (foreground) {
@@ -253,7 +263,6 @@ public final class DownloadService extends Service {
 		return START_NOT_STICKY;
 	}
 	
-	@Override
 	public void onTimeout(int startId, int fgsType) {
 		handleForegroundTimeout(startId);
 	}
@@ -265,10 +274,7 @@ public final class DownloadService extends Service {
 		notificationBuilder = null;
 		groupTasks.clear();
 		foregroundTasks.clear();
-		
-		synchronized (lastNotifyTime) {
-			lastNotifyTime.clear();
-		}
+		notificationExecutor.shutdownNow();
 		
 		synchronized (thumbnails) {
 			thumbnails.clear();
@@ -402,6 +408,7 @@ public final class DownloadService extends Service {
 	}
 	
 	private void handleProgress(DownloadTask task) {
+        if (!task.isActive()) return;
 		if (!isNotificationAllowed(task)) return;
 		if (task.mNotificationDismissed) return;
 		
@@ -410,9 +417,7 @@ public final class DownloadService extends Service {
 			addToGroup(task);
 		}
 		
-		if (shouldUpdateNotification(task)) {
-			postProgressNotification(task, resolveProgressText(task), speedSubText(task), task.mProgress, false, false, true);
-		}
+		postProgressNotification(task, resolveProgressText(task), speedSubText(task), task.mProgress, false, false, true);
 	}
 	
 	private void handlePaused(DownloadTask task) {
@@ -427,7 +432,8 @@ public final class DownloadService extends Service {
 		if (!isNotificationAllowed(task)) return;
 		task.mNotificationDismissed = false;
 		if (!groupTasks.contains(task.mId)) addToGroup(task);
-		postProgressNotification(task, resolveProgressText(task), speedSubText(task), task.mProgress, false, false, true);
+        String text = "Resumeing • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
+		postProgressNotification(task, text, speedSubText(task), task.mProgress, false, false, true);
 	}
 	
 	private void handleWaitingForNetwork(DownloadTask task) {
@@ -640,21 +646,6 @@ public final class DownloadService extends Service {
 		}
 	}
 	
-	private boolean shouldUpdateNotification(DownloadTask task) {
-		if (task == null) return false;
-		DownloadNotification config = task.mNotification == null ? new DownloadNotification() : task.mNotification;
-		long interval = config.notificationUpdateIntervalMs;
-		if (interval <= 0) return true;
-		long now = System.currentTimeMillis();
-		
-		synchronized (lastNotifyTime) {
-			Long last = lastNotifyTime.get(task.mId);
-			if (last != null && now - last < interval) return false;
-			lastNotifyTime.put(task.mId, now);
-			return true;
-		}
-	}
-	
 	private void addToGroup(DownloadTask task) {
 		if (task == null || !task.mDownloader.areNotificationsEnabled()) return;
 		if (!groupTasks.add(task.mId)) return;
@@ -666,11 +657,6 @@ public final class DownloadService extends Service {
 	private void removeFromGroup(long taskId) {
 		boolean removed = groupTasks.remove(taskId);
 		foregroundTasks.remove(taskId);
-		
-		synchronized (lastNotifyTime) {
-			lastNotifyTime.remove(taskId);
-		}
-		
 		if (removed) refreshSummary();
 	}
 	
@@ -758,5 +744,15 @@ public final class DownloadService extends Service {
 	
 	static String formatBytesRatio(long downloaded, long total) {
 		return Formator.formatRatio(Formator.formatBytes(downloaded), Formator.formatBytes(total), " / ");
+	}
+	
+	private void executeNotificationWork(Runnable work) {
+		if (work == null || notificationExecutor.isShutdown()) return;
+		
+		try {
+			notificationExecutor.execute(work);
+		} catch (RejectedExecutionException ignored) {
+			//
+		}
 	}
 }
