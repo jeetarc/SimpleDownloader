@@ -91,7 +91,6 @@ final class EventDispatcher {
 		if (listeners == null) return;
 		SlotManager slotManager = task.mDownloader.slotManager;
 		final int position = slotManager != null ? slotManager.getQueuePosition(task) : 0;
-		final boolean locked = task.mLockedInQueue;
 		
 		task.postToMain(new Runnable() {
 			@Override
@@ -99,7 +98,7 @@ final class EventDispatcher {
 				for (DownloadListener listener : listeners) {
 					
 					try {
-						listener.onQueued(task.mId, position, locked, task);
+						listener.onQueued(task.mId, position, task);
 					} catch (Throwable error) {
 						System.err.println("SimpleDownloader: " + error.toString());
 					}
@@ -118,7 +117,6 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				DownloadService.onTaskProgress(task);
 				
 				if (listeners != null) {
 					for (DownloadListener listener : listeners) {
