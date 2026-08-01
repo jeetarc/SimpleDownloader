@@ -78,9 +78,10 @@ public class DownloadTask {
 	volatile boolean mPauseRequested = false;
 	volatile boolean mRemoveRequested = false;
 	volatile boolean mCancelRequested = false;
-	volatile boolean mNetworkPaused = false;
 	volatile boolean mRefreshRequested = false;
 	volatile boolean mRequeueRequested = false;
+    volatile boolean mNetworkPaused = false;
+    volatile boolean mForceDownload = false;
 	volatile boolean mManualRetryPending = false;
 	private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 	private volatile Future<?> mFuture;
@@ -315,6 +316,7 @@ public class DownloadTask {
 	}
 	
 	public DownloadTask setLockedInQueue(boolean enable) {
+		if (mLockedInQueue == enable) return this;
 		mLockedInQueue = enable;
 		mDownloader.taskManager.sortTasks();
 		if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.updateLockedInQueue(mId, enable);
@@ -323,7 +325,8 @@ public class DownloadTask {
 	}
 	
 	public void forceDownload() {
-		if (status != Status.QUEUED) return;
+		if (!isQueued()) return;
+		mForceDownload = true;
 		resetStopFlags();
 		mDownloader.slotManager.submitTask(this, true);
 	}
@@ -501,6 +504,23 @@ public class DownloadTask {
 		mRemoveRequested = false;
 		mRefreshRequested = false;
 		mRequeueRequested = false;
+	}
+	
+	void clearFinishedRuntimeData() {
+		mCurrentCall = null;
+		resetStopFlags();
+		mIgnoredRange = false;
+		mLastSyncTime = 0L;
+		mLastSyncBytes = 0L;
+		mLastSpeedForAutoConcurrency = 0L;
+		
+		if (status != Status.FAILED) {
+			// Completed and cancelled tasks cannot be retry.
+			mETag = null;
+			mLastModified = null;
+			mChecksumFailed = false;
+			mManualRetryPending = false;
+		}
 	}
 	
 	void cancelThumbnailRequest() {
