@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
+import android.util.Log;
 
 final class OutputResolver {
 	private static final Map<String, Object> sFolderLocks = new HashMap<>();
@@ -117,7 +118,7 @@ final class OutputResolver {
 		String lockKey = task.mTreeUri != null ? task.mTreeUri.toString() : folder.getUri().toString();
 		Object lock = getFolderLock(lockKey);
 		
-        DocumentFile file;
+		DocumentFile file;
 		synchronized (lock) {
 			file = folder.createFile(task.mMimeType, validName);
 		}
@@ -188,7 +189,7 @@ final class OutputResolver {
 		
 		for (int i = 1; i <= 999; i++) {
 			String suffix = ext.isEmpty() ? "" : "." + ext;
-            File candidate = new File(folder, baseName + " (" + i + ")" + suffix);
+			File candidate = new File(folder, baseName + " (" + i + ")" + suffix);
 			try {
 				if (candidate.createNewFile()) return candidate;
 			} catch (IOException e) {
@@ -225,7 +226,12 @@ final class OutputResolver {
 	}
 	
 	private static Uri createFileProviderUri(Context context, File file) {
-		return FileProvider.getUriForFile(context, context.getPackageName() + ".simpledownloader.fileprovider", file);
+		try {
+			return FileProvider.getUriForFile(context, context.getPackageName() + ".simpledownloader.fileprovider", file);
+		} catch (Exception error) {
+			Log.w("SimpleDownloader: ", "FileProvider cannot be resolved. The outputUri will be null for file path outputs. " + error.toString());
+			return null;
+		}
 	}
 	
 	private static Object getFolderLock(String key) {
