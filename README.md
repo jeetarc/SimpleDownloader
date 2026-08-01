@@ -10,6 +10,7 @@ The simple API:
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
+    .enableForeground(true)
     .setOutput(folderPath, FileName.AUTO) // or .setOutput(folderUri, FileName.AUTO, MimeType.AUTO)
     .setFileUrl(fileUrl)
     .startDownload();
@@ -180,17 +181,17 @@ DownloadTask task = SimpleDownloader.with(this)
 Other callbacks include:
 
 ```java
-onStart(...)
-onQueued(...)
-onPaused(...)
-onResumed(...)
-onCancelled(...)
-onRemoved(...)
-onRetry(...)
-onWaitingForNetwork(...)
-onStatusChanged(...)
-onActiveChanged(...)
-onLifecycleChanged(...)
+onStart(long id, DownloadTask task)
+onQueued(long id, int position, DownloadTask task)
+onPaused(long id, DownloadTask task)
+onResumed(long id, DownloadTask task)
+onCancelled(long id, DownloadTask task)
+onRemoved(long id, boolean outputDeleted, DownloadTask task)
+onRetry(long id, int attempt, DownloadTask task)
+onWaitingForNetwork(long id, int networkType, DownloadTask task)
+onStatusChanged(long id, Status status, DownloadTask task)
+onActiveChanged(long id, boolean isActive, DownloadTask task)
+onLifecycleChanged(long id, int lifecycle, DownloadTask task)
 ```
 
 `onStart()` can run again on resume, retry, etc. use `onLifecycleChanged()`. to know start or end for the full lifestyle.
@@ -307,11 +308,7 @@ get task from registry:
 ```java
 DownloadTask task = SimpleDownloader.getTask(id);
 List<DownloadTask> all = SimpleDownloader.getTasks();
-List<DownloadTask> completed =
-    SimpleDownloader.getTasks(Status.COMPLETED);
-List<DownloadTask> highPriority = SimpleDownloader.getTasks(Priority.HIGH);
-List<DownloadTask> videos =
-SimpleDownloader.getTasks("video/mp4");
+List<DownloadTask> completed = SimpleDownloader.getTasks(TaskField.STATUS, Status.COMPLETED);
 
 int total = SimpleDownloader.getTotalCount();
 int active = SimpleDownloader.getActiveCount();
