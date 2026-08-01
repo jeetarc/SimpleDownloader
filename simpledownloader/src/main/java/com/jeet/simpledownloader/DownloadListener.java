@@ -28,17 +28,13 @@ public interface DownloadListener {
 	default void onStart(long id, DownloadTask task) {}
 	
 	/**
-    * Called when the task enters the queue or its queued state changes.
-    *
-    * <p>This may be called again when the task becomes locked or unlocked
-    * in the queue via {@code setLockedInQueue()}</p>
+    * Called when the task enters the queue or its position changes.
     *
     * @param id the task ID
     * @param position the task's current position in the queue
-    * @param lockedInQueue is the task locked in the queue or not?
     * @param task the task instance
     */	
-	default void onQueued(long id, int position, boolean lockedInQueue, DownloadTask task) {}
+	default void onQueued(long id, int position, DownloadTask task) {}
 	
 	/**
     * Called when the download progress updates.
@@ -108,7 +104,7 @@ public interface DownloadListener {
     *
     * @param id the task ID
     * @param attempt the retry attempt count
-    * @param task the task instance; use {@code getMaxRetryCount()} to get the maximum retry count
+    * @param task the task instance; use {@code getMaxRetries()} to get the maximum retry count
     */	
 	default void onRetry(long id, int attempt, DownloadTask task) {}
 	
