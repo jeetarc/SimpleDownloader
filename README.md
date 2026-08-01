@@ -54,7 +54,7 @@ Add SimpleDownloader to your app module:
 
 ```gradle
 dependencies {
-    implementation "com.github.jeetarc:SimpleDownloader:1.0.0-beta.1"
+    implementation "com.github.jeetarc:SimpleDownloader:1.0.0-beta.2"
 }
 ```
 
