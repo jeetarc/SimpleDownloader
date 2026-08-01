@@ -127,33 +127,30 @@ final class TaskManager {
 		}
 	}
 	
-	ArrayList<DownloadTask> getTasks(Status status) {
-		ArrayList<DownloadTask> result = new ArrayList<DownloadTask>();
+	<T> DownloadTask getTask(TaskField<T> field, T value) {
+		validateFieldValue(field, value);
+		
 		synchronized (downloader.mLock) {
+			DownloadTask latest = null;
 			for (DownloadTask task : taskList) {
-				if (task != null && task.getStatus() == status) result.add(task);
+				if (!matches(task, field, value)) continue;
+				if (latest == null || task.mCreatedAt > latest.mCreatedAt) latest = task;
 			}
+			
+			return latest;
 		}
-		return result;
 	}
 	
-	ArrayList<DownloadTask> getTasks(Priority priority) {
+	<T> ArrayList<DownloadTask> getTasks(TaskField<T> field, T value) {
+		validateFieldValue(field, value);
 		ArrayList<DownloadTask> result = new ArrayList<DownloadTask>();
+		
 		synchronized (downloader.mLock) {
 			for (DownloadTask task : taskList) {
-				if (task != null && task.getPriority() == priority) result.add(task);
+				if (matches(task, field, value)) result.add(task);
 			}
 		}
-		return result;
-	}
-	
-	ArrayList<DownloadTask> getTasks(String mimeType) {
-		ArrayList<DownloadTask> result = new ArrayList<DownloadTask>();
-		synchronized (downloader.mLock) {
-			for (DownloadTask task : taskList) {
-				if (task != null && mimeType != null && mimeType.equals(task.getMimeType())) result.add(task);
-			}
-		}
+		
 		return result;
 	}
 	
@@ -279,7 +276,7 @@ final class TaskManager {
 	
 	private static int getTaskSortGroup(DownloadTask task) {
 		if (task == null) return 99;
-		if (task.isOccupiedSlot()) return 1;
+		if (task.isOccupiedSlot() || task.isActive()) return 1;
 		if (task.isQueued() || task.isPaused()) return 2;
 		if (task.isFinished()) return 3;
 		return 4;
@@ -468,6 +465,112 @@ final class TaskManager {
 		} else if (task.status == Status.WAITING_FOR_NETWORK) {
 			EventDispatcher.onWaitingForNetwork(task);
 		}
+	}
+	
+	private static <T> void validateFieldValue(TaskField<T> field, T value) {
+		if (field == null) throw new IllegalArgumentException("TaskField cannot be null.");
+		
+		if (value != null && !field.type.isInstance(value)) {
+			throw new IllegalArgumentException("Expected "
+			+ field.type.getSimpleName()
+			+ " for field "
+			+ field.column
+			+ ", but received "
+			+ value.getClass().getSimpleName()
+			+ ".");
+		}
+	}
+	
+	private static <T> boolean matches(DownloadTask task, TaskField<T> field, T expected) {
+		if (task == null) return false;
+		Object actual;
+		
+		switch (field.column) {
+			case "id":
+			actual = task.mId;
+			break;
+			
+			case "file_url":
+			actual = task.mFileUrl;
+			break;
+			
+			case "status":
+			actual = task.status;
+			break;
+			
+			case "priority":
+			actual = task.mPriority;
+			break;
+			
+			case "mime_type":
+			actual = task.mMimeType;
+			break;
+			
+			case "output_file_name":
+			actual = task.getFileName();
+			break;
+			
+			case "created_at":
+			actual = task.mCreatedAt;
+			break;
+			
+			case "wifi_only":
+			actual = task.mWifiOnly;
+			break;
+			
+			case "buffer_size":
+			actual = task.mBufferSize;
+			break;
+			
+			case "progress":
+			actual = task.mProgress;
+			break;
+			
+			case "bytes_downloaded":
+			actual = task.mBytesDownloaded;
+			break;
+			
+			case "total_bytes":
+			actual = task.mTotalBytes;
+			break;
+			
+			case "output_uri":
+			actual = task.mOutputUri;
+			break;
+			
+			case "output_path":
+			actual = task.mOutputPath;
+			break;
+			
+			case "overwrite_uri":
+			actual = task.mOverwriteUri;
+			break;
+			
+			case "overwrite_path":
+			actual = task.mOverwritePath;
+			break;
+			
+			case "tree_uri":
+			actual = task.mTreeUri;
+			break;
+			
+			case "output_folder_path":
+			actual = task.mOutputFolderPath;
+			break;
+			
+			case "delete_on_removal":
+			actual = task.mDeleteOnRemoval;
+			break;
+			
+			case "locked_in_queue":
+			actual = task.mLockedInQueue;
+			break;
+			
+			default:
+			throw new IllegalArgumentException("Unsupported TaskField: " + field.column);
+		}
+		
+		return actual == expected || (actual != null && actual.equals(expected));
 	}
 	
 	void updateAutoSpeedLocked(DownloadTask task, long newSpeed) {
