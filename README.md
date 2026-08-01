@@ -181,17 +181,17 @@ DownloadTask task = SimpleDownloader.with(this)
 Other callbacks include:
 
 ```java
-onStart(long id, DownloadTask task)
-onQueued(long id, int position, DownloadTask task)
-onPaused(long id, DownloadTask task)
-onResumed(long id, DownloadTask task)
-onCancelled(long id, DownloadTask task)
-onRemoved(long id, boolean outputDeleted, DownloadTask task)
-onRetry(long id, int attempt, DownloadTask task)
-onWaitingForNetwork(long id, int networkType, DownloadTask task)
-onStatusChanged(long id, Status status, DownloadTask task)
-onActiveChanged(long id, boolean isActive, DownloadTask task)
-onLifecycleChanged(long id, int lifecycle, DownloadTask task)
+onStart(long id, DownloadTask task) {}
+onQueued(long id, int position, DownloadTask task) {}
+onPaused(long id, DownloadTask task) {}
+onResumed(long id, DownloadTask task) {}
+onCancelled(long id, DownloadTask task) {}
+onRemoved(long id, boolean outputDeleted, DownloadTask task) {}
+onRetry(long id, int attempt, DownloadTask task) {}
+onWaitingForNetwork(long id, int networkType, DownloadTask task) {}
+onStatusChanged(long id, Status status, DownloadTask task) {}
+onActiveChanged(long id, boolean isActive, DownloadTask task) {}
+onLifecycleChanged(long id, int lifecycle, DownloadTask task) {}
 ```
 
 `onStart()` can run again on resume, retry, etc. use `onLifecycleChanged()`. to know start or end for the full lifestyle.
