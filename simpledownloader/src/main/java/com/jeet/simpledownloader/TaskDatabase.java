@@ -161,7 +161,7 @@ class TaskDatabase extends SQLiteOpenHelper {
 		ContentValues values = new ContentValues();
 		values.put(BYTES_DOWNLOADED, bytesDownloaded);
 		values.put(TOTAL_BYTES, totalBytes);
-        values.put(PROGRESS, progress);
+		values.put(PROGRESS, progress);
 		values.put(ETAG, eTag);
 		values.put(LAST_MODIFIED, lastModified);
 		values.put(UPDATED_AT, System.currentTimeMillis());
@@ -240,6 +240,19 @@ class TaskDatabase extends SQLiteOpenHelper {
 	void removeAllTasks() {
 		if (mClosed) return;
 		getWritableDatabase().delete(TABLE_TASKS, null, null);
+	}
+    
+    void clearFinishedInternalData(long id) {
+		if (mClosed) return;
+		ContentValues values = new ContentValues();
+		values.putNull(ETAG);
+		values.putNull(LAST_MODIFIED);
+		values.putNull(CHECKSUM_ALGORITHM);
+		values.putNull(CHECKSUM_VALUE);
+		values.putNull(FILE_NAME_MODE);
+		values.putNull(MIME_TYPE_MODE);
+		values.put(CHECKSUM_FAILED, 0);
+		updateTaskData(id, values);
 	}
 	
 	private ContentValues toValues(DownloadTask task, Status saveStatus) {
@@ -350,8 +363,8 @@ class TaskDatabase extends SQLiteOpenHelper {
 		
 		return tasks;
 	}
-    
-    private static <T> FieldQuery createFieldQuery(TaskField<T> field, T value) {
+	
+	private static <T> FieldQuery createFieldQuery(TaskField<T> field, T value) {
 		if (field == null) throw new IllegalArgumentException("TaskField cannot be null.");
 		if (value == null) return new FieldQuery(field.column + " IS NULL", null);
 		
@@ -390,8 +403,8 @@ class TaskDatabase extends SQLiteOpenHelper {
 			});
 		}
 	}
-    
-    static String headersToJson(Map<String, String> headers) {
+	
+	static String headersToJson(Map<String, String> headers) {
 		try {
 			JSONObject obj = new JSONObject();
 			if (headers != null) for (Map.Entry<String, String> e : headers.entrySet()) obj.put(e.getKey(), e.getValue());
