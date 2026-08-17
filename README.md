@@ -587,7 +587,7 @@ SimpleDownloader downloader = SimpleDownloader.with(context)
 Retry settings stay on the `SimpleDownloader` instance used to create or restore tasks.
 
 ## MIME Type
-A MIME type (media type) is a used to identify the format of a file:
+A MIME type (media type) is a used to identify the format of a file, SimpleDownloader resolves it automatically, but can be set explicitly:
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
@@ -601,8 +601,6 @@ Or use automatic resolution:
 ```java
 .setMimeType(MimeType.AUTO) // or MimeType.FROM_NAME
 ```
-
-SimpleDownloader handles this automatically When no MIME type is specified.
 
 ## Network, headers, cookies
 
