@@ -23,7 +23,7 @@ import org.json.JSONObject;
 class TaskDatabase extends SQLiteOpenHelper {
 	private volatile boolean mClosed = false;
 	private static final String DB_NAME = "SimpleDownloader.db";
-	private static final int VERSION = 1;
+	private static final int VERSION = 2;
 	private static final String TABLE_TASKS = "tasks";
 	
 	private static final String ID = "id";
@@ -31,6 +31,8 @@ class TaskDatabase extends SQLiteOpenHelper {
 	private static final String OUTPUT_URI = "output_uri";
 	private static final String TREE_URI = "tree_uri";
 	private static final String OVERWRITE_URI = "overwrite_uri";
+	private static final String MEDIA_STORE_URI = "media_store_uri";
+	private static final String SUB_FOLDER_PATH = "sub_folder_path";
 	private static final String OUTPUT_FOLDER_PATH = "output_folder_path";
 	private static final String OVERWRITE_PATH = "overwrite_path";
 	private static final String OUTPUT_PATH = "output_path";
@@ -72,7 +74,12 @@ class TaskDatabase extends SQLiteOpenHelper {
 	@Override
 	public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
 		createTasksTable(db);
-		ensureColumn(db, TABLE_TASKS, UPDATED_AT, "INTEGER DEFAULT 0");
+		
+		if (oldVersion < 2) {
+			ensureColumn(db, TABLE_TASKS, MEDIA_STORE_URI, "TEXT");
+			ensureColumn(db, TABLE_TASKS, SUB_FOLDER_PATH, "TEXT");
+		}
+		
 		createIndexes(db);
 	}
 	
@@ -89,6 +96,8 @@ class TaskDatabase extends SQLiteOpenHelper {
 		OUTPUT_URI + " TEXT," +
 		TREE_URI + " TEXT," +
 		OVERWRITE_URI + " TEXT," +
+		MEDIA_STORE_URI + " TEXT," +
+		SUB_FOLDER_PATH + " TEXT," +
 		OUTPUT_FOLDER_PATH + " TEXT," +
 		OVERWRITE_PATH + " TEXT," +
 		OUTPUT_PATH + " TEXT," +
@@ -186,7 +195,7 @@ class TaskDatabase extends SQLiteOpenHelper {
 		if (task == null) return;
 		ContentValues values = new ContentValues();
 		values.put(OUTPUT_URI, task.mOutputUri != null ? task.mOutputUri.toString() : null);
-		values.put(OUTPUT_FILE_NAME, task.mOutputName != null ? task.mOutputName : task.mFileName);
+		values.put(OUTPUT_FILE_NAME, task.mOutputName != null ? task.mOutputName : null);
 		values.put(OUTPUT_PATH, task.mOutputPath);
 		values.put(UPDATED_AT, System.currentTimeMillis());
 		updateTaskData(task.mId, values);
@@ -232,17 +241,7 @@ class TaskDatabase extends SQLiteOpenHelper {
 		updateTaskData(id, values);
 	}
 	
-	void removeTask(long id) {
-		if (mClosed) return;
-		getWritableDatabase().delete(TABLE_TASKS, ID + "=?", new String[]{String.valueOf(id)});
-	}
-	
-	void removeAllTasks() {
-		if (mClosed) return;
-		getWritableDatabase().delete(TABLE_TASKS, null, null);
-	}
-    
-    void clearFinishedInternalData(long id) {
+	void clearFinishedInternalData(long id) {
 		if (mClosed) return;
 		ContentValues values = new ContentValues();
 		values.putNull(ETAG);
@@ -263,6 +262,8 @@ class TaskDatabase extends SQLiteOpenHelper {
 		values.put(OUTPUT_URI, task.mOutputUri != null ? task.mOutputUri.toString() : null);
 		values.put(TREE_URI, task.mTreeUri != null ? task.mTreeUri.toString() : null);
 		values.put(OVERWRITE_URI, task.mOverwriteUri != null ? task.mOverwriteUri.toString() : null);
+		values.put(MEDIA_STORE_URI,task.mMediaStoreUri != null ? task.mMediaStoreUri.toString() : null);
+		values.put(SUB_FOLDER_PATH, task.mSubFolderPath);
 		values.put(OUTPUT_FOLDER_PATH, task.mOutputFolderPath);
 		values.put(OVERWRITE_PATH, task.mOverwritePath);
 		values.put(OUTPUT_PATH, task.mOutputPath);
@@ -300,7 +301,9 @@ class TaskDatabase extends SQLiteOpenHelper {
 		state.outputUri = getString(c, OUTPUT_URI);
 		state.treeUri = getString(c, TREE_URI);
 		state.overwriteUri = getString(c, OVERWRITE_URI);
+		state.mediaStoreUri = getString(c, MEDIA_STORE_URI);
 		state.outputFolderPath = getString(c, OUTPUT_FOLDER_PATH);
+        state.subFolderPath = getString(c, SUB_FOLDER_PATH);
 		state.overwritePath = getString(c, OVERWRITE_PATH);
 		state.outputPath = getString(c, OUTPUT_PATH);
 		state.outputName = getString(c, OUTPUT_FILE_NAME);
@@ -330,6 +333,16 @@ class TaskDatabase extends SQLiteOpenHelper {
 		return state;
 	}
 	
+	void removeTask(long id) {
+		if (mClosed) return;
+		getWritableDatabase().delete(TABLE_TASKS, ID + "=?", new String[]{String.valueOf(id)});
+	}
+	
+	void removeAllTasks() {
+		if (mClosed) return;
+		getWritableDatabase().delete(TABLE_TASKS, null, null);
+	}
+	
 	<T> List<TaskState> loadTaskStates(TaskField<T> field, T value) {
 		if (mClosed) return new ArrayList<TaskState>();
 		FieldQuery query = createFieldQuery(field, value);
@@ -354,9 +367,7 @@ class TaskDatabase extends SQLiteOpenHelper {
 		Cursor cursor = getReadableDatabase().query(TABLE_TASKS, null, selection, args, null, null, orderBy, limit);
 		
 		try {
-			while (cursor.moveToNext()) {
-				tasks.add(fromCursor(cursor));
-			}
+			while (cursor.moveToNext()) tasks.add(fromCursor(cursor));
 		} finally {
 			cursor.close();
 		}
@@ -469,3 +480,4 @@ class TaskDatabase extends SQLiteOpenHelper {
 		}
 	}
 }
+
