@@ -11,6 +11,7 @@ import com.jeet.simpledownloader.util.TypeResolver;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import android.provider.MediaStore;
 
 final class DownloadRequest {
 	final long id;
@@ -18,6 +19,8 @@ final class DownloadRequest {
 	final Uri overwriteUri;
 	final String outputFolderPath;
 	final String overwritePath;
+	final Uri mediaStoreUri;
+	final String subFolderPath;
 	final String fileName;
 	final String mimeType;
 	final FileName fileNameMode;
@@ -42,6 +45,8 @@ final class DownloadRequest {
 		this.overwriteUri = builder.overwriteUri;
 		this.outputFolderPath = builder.outputFolderPath;
 		this.overwritePath = builder.overwritePath;
+		this.mediaStoreUri = builder.mediaStoreUri;
+		this.subFolderPath = builder.subFolderPath;
 		this.fileName = resolved.fileName;
 		this.mimeType = resolved.mimeType;
 		this.fileNameMode = resolved.fileNameMode;
@@ -76,6 +81,8 @@ final class DownloadRequest {
 		Uri overwriteUri;
 		String outputFolderPath;
 		String overwritePath;
+		Uri mediaStoreUri;
+		String subFolderPath;
 		String fileName;
 		String mimeType;
 		FileName fileNameMode = null;
@@ -95,62 +102,62 @@ final class DownloadRequest {
 		DownloadNotification notification = new DownloadNotification();
 		DownloadListener listener;
 		
-        Builder putId(long id) {
+		Builder putId(long id) {
 			customId = id;
 			return this;
 		}
-        
-        Builder putFileUrl(String fileUrl) {
+		
+		Builder putFileUrl(String fileUrl) {
 			if (fileUrl == null || fileUrl.trim().isEmpty()) throw new IllegalArgumentException("fileUrl cannot be null or empty. use valid file URL to start download.");
 			this.fileUrl = fileUrl.trim();
 			return this;
 		}
-        
-		Builder putOutput(Uri treeUri, String fileName, String mimeType) {
-			if (treeUri == null) throw new IllegalArgumentException("setOutput(Uri, String, String): Uri cannot be null. Use a valid folder Uri from ACTION_OPEN_DOCUMENT_TREE.");
+		
+		Builder putOutput(Uri folderUri, String fileName) {
+			if (folderUri == null) throw new IllegalArgumentException("setOutput(Uri, String, String): Uri cannot be null. Use a valid folder Uri from ACTION_OPEN_DOCUMENT_TREE.");
 			if (fileName == null || fileName.trim().isEmpty()) throw new IllegalArgumentException("setOutput(Uri, String, String): String fileName cannot be null or empty. Use a file name such as 'video.mp4'.");
-			if (mimeType == null || mimeType.trim().isEmpty()) throw new IllegalArgumentException("setOutput(Uri, String, String): String mimeType cannot be null or empty. Use a MIME type such as 'video/mp4'.");
-			
 			clearOutput();
-			this.treeUri = treeUri;
+			
+			if (isMediaStoreCollectionUri(folderUri)) this.mediaStoreUri = folderUri; else this.treeUri = folderUri;
 			this.fileName = fileName.trim();
-			this.mimeType = mimeType.trim();
 			return this;
 		}
 		
-		Builder putOutput(Uri treeUri, FileName fileNameMode, MimeType mimeTypeMode) {
-			if (treeUri == null) throw new IllegalArgumentException("setOutput(Uri, FileName, MimeType): Uri cannot be null. Use a valid folder Uri from ACTION_OPEN_DOCUMENT_TREE.");
-			if (fileNameMode == null) throw new IllegalArgumentException("setOutput(Uri, FileName, MimeType): FileName cannot be null. Use FileName.AUTO or another supported FileName mode.");
-			if (mimeTypeMode == null) throw new IllegalArgumentException("setOutput(Uri, FileName, MimeType): MimeType cannot be null. Use MimeType.AUTO or another supported MimeType mode.");
-			
+		Builder putOutput(Uri folderUri, FileName fileName) {
+			if (folderUri == null) throw new IllegalArgumentException("setOutput(Uri, FileName, MimeType): Uri cannot be null. Use a valid folder Uri from ACTION_OPEN_DOCUMENT_TREE.");
+			if (fileName == null) throw new IllegalArgumentException("setOutput(Uri, FileName, MimeType): FileName cannot be null. Use FileName.AUTO or another supported FileName mode.");
 			clearOutput();
-			this.treeUri = treeUri;
-			this.fileNameMode = fileNameMode;
-			this.mimeTypeMode = mimeTypeMode;
+			
+			if (isMediaStoreCollectionUri(folderUri)) this.mediaStoreUri = folderUri; else this.treeUri = folderUri;
+			this.fileNameMode = fileName;
 			return this;
 		}
 		
-		Builder putOutput(Uri treeUri, String fileName, MimeType mimeTypeMode) {
-			if (treeUri == null) throw new IllegalArgumentException("setOutput(Uri, String, MimeType): Uri cannot be null. Use a valid folder Uri from ACTION_OPEN_DOCUMENT_TREE.");
-			if (fileName == null || fileName.trim().isEmpty()) throw new IllegalArgumentException("setOutput(Uri, String, MimeType): String fileName cannot be null or empty. Use a file name such as 'video.mp4'.");
-			if (mimeTypeMode == null) throw new IllegalArgumentException("setOutput(Uri, String, MimeType): MimeType cannot be null. Use MimeType.AUTO or another supported MimeType mode.");
-			
+		Builder putOutput(String folderPath, String fileName) {
+			if (folderPath == null || folderPath.trim().isEmpty()) throw new IllegalArgumentException("setOutput(String, String): folderPath cannot be null or empty.");
+			if (fileName == null) throw new IllegalArgumentException("setOutput(String, String): fileName cannot be null or empty.");
 			clearOutput();
-			this.treeUri = treeUri;
+			
+			outputFolderPath = folderPath.trim();
 			this.fileName = fileName.trim();
-			this.mimeTypeMode = mimeTypeMode;
 			return this;
 		}
 		
-		Builder putOutput(Uri treeUri, FileName fileNameMode, String mimeType) {
-			if (treeUri == null) throw new IllegalArgumentException("setOutput(Uri, FileName, String): Uri cannot be null. Use a valid folder Uri from ACTION_OPEN_DOCUMENT_TREE.");
-			if (fileNameMode == null) throw new IllegalArgumentException("setOutput(Uri, FileName, String): FileName cannot be null. Use FileName.AUTO or another supported FileName mode.");
-			if (mimeType == null || mimeType.trim().isEmpty()) throw new IllegalArgumentException("setOutput(Uri, FileName, String): String mimeType cannot be null or empty. Use a MIME type such as 'video/mp4'.");
+		Builder putOutput(String folderPath, FileName fileName) {
+			if (folderPath == null || folderPath.trim().isEmpty()) throw new IllegalArgumentException("setOutput(String, FileName): folderPath cannot be null or empty.");
+			if (fileName == null) throw new IllegalArgumentException("setOutput(String, FileName): FileName cannot be null.");
+			clearOutput();
+			
+			outputFolderPath = folderPath.trim();
+			this.fileNameMode = fileName;
+			return this;
+		}
+		
+		Builder putOverwrite(String outputPath) {
+			if (outputPath == null || outputPath.trim().isEmpty()) throw new IllegalArgumentException("overwrite(String): outputPath cannot be null or empty.");
 			
 			clearOutput();
-			this.treeUri = treeUri;
-			this.fileNameMode = fileNameMode;
-			this.mimeType = mimeType.trim();
+			overwritePath = outputPath.trim();
 			return this;
 		}
 		
@@ -162,33 +169,18 @@ final class DownloadRequest {
 			return this;
 		}
 		
-		Builder putOutput(String folderPath, String fileName) {
-			if (folderPath == null || folderPath.trim().isEmpty()) throw new IllegalArgumentException("setOutput(String, String): folderPath cannot be null or empty.");
-			if (fileName == null) throw new IllegalArgumentException("setOutput(String, String): fileName cannot be null or empty.");
-			
-			clearOutput();
-			outputFolderPath = folderPath.trim();
-			this.fileName = fileName.trim();
-			mimeTypeMode = MimeType.AUTO;
+		Builder putMimeType(String mimeType) {
+			this.mimeType = mimeType == null ? null : mimeType.trim();
 			return this;
 		}
 		
-		Builder putOutput(String folderPath, FileName fileNameMode) {
-			if (folderPath == null || folderPath.trim().isEmpty()) throw new IllegalArgumentException("setOutput(String, FileName): folderPath cannot be null or empty.");
-			if (fileNameMode == null) throw new IllegalArgumentException("setOutput(String, FileName): FileName cannot be null.");
-			
-			clearOutput();
-			outputFolderPath = folderPath.trim();
-			this.fileNameMode = fileNameMode;
-			mimeTypeMode = MimeType.AUTO;
+		Builder putMimeType(MimeType mimeType)  {
+			this.mimeTypeMode = mimeType;
 			return this;
 		}
 		
-		Builder putOverwrite(String outputPath) {
-			if (outputPath == null || outputPath.trim().isEmpty()) throw new IllegalArgumentException("overwrite(String): outputPath cannot be null or empty.");
-			
-			clearOutput();
-			overwritePath = outputPath.trim();
+		Builder putSubFolder(String subFolder) {
+			this.subFolderPath = subFolder == null ? null : subFolder.trim();
 			return this;
 		}
 		
@@ -255,14 +247,13 @@ final class DownloadRequest {
 			return this;
 		}
         
-        boolean hasCustomId() {
-			return customId != null;
-		}
-		
-		
-		DownloadRequest build(long generatedId) {
-			if (treeUri == null && overwriteUri == null && outputFolderPath == null && overwritePath == null) throw new IllegalStateException("Call setOutput(...) or overwrite(...) before starting a download.");
+        DownloadRequest build(long generatedId) {
+			if (treeUri == null && mediaStoreUri == null && overwriteUri == null && outputFolderPath == null && overwritePath == null) {
+				throw new IllegalStateException("Call setOutput(...) or overwrite(...) before starting a download.");
+			}
+			
 			if (fileUrl == null) throw new IllegalStateException("Call setFileUrl(...) before starting a download.");
+			if ((mimeType == null || mimeType.trim().isEmpty()) && mimeTypeMode == null) mimeTypeMode = MimeType.AUTO;
 			ResolvedName resolved = resolveFileNameAndMimeType();
 			
 			if (overwriteUri == null && overwritePath == null) {
@@ -274,11 +265,27 @@ final class DownloadRequest {
 			return new DownloadRequest(this, id, resolved);
 		}
 		
+		boolean hasCustomId() {
+			return customId != null;
+		}
+		
+		private boolean isMediaStoreCollectionUri(Uri uri) {
+			if (uri == null) return false;
+			if (!"media".equals(uri.getAuthority())) return false;
+			String value = uri.toString();
+			
+			return value.equals(MediaStore.Downloads.EXTERNAL_CONTENT_URI.toString())
+			|| value.equals(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.toString())
+			|| value.equals(MediaStore.Video.Media.EXTERNAL_CONTENT_URI.toString())
+			|| value.equals(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI.toString());
+		}
+		
 		private void clearOutput() {
 			treeUri = null;
 			overwriteUri = null;
 			outputFolderPath = null;
 			overwritePath = null;
+			mediaStoreUri = null;
 			fileName = null;
 			mimeType = null;
 			fileNameMode = null;
@@ -290,20 +297,15 @@ final class DownloadRequest {
 			String finalMimeType = mimeType;
 			FileName finalFileNameMode = fileNameMode;
 			MimeType finalMimeTypeMode = mimeTypeMode;
-			
-			if (finalFileNameMode == null && finalMimeTypeMode == null) {
-				return new ResolvedName(finalFileName, finalMimeType, null, null);
-			}
+			if (finalFileNameMode == null && finalMimeTypeMode == null) return new ResolvedName(finalFileName, finalMimeType, null, null);
 			
 			String extension = TypeResolver.getExtensionFromUrl(fileUrl);
 			String suffix = extension.isEmpty() ? "" : "." + extension;
 			
 			if (finalFileNameMode == FileName.AUTO) {
 				String segment = Uri.parse(fileUrl).getLastPathSegment();
-				
-				if (segment != null && !segment.trim().isEmpty()) {
-					finalFileName = segment;
-				} else finalFileName = createTimeBasedName() + suffix;
+				if (segment != null && !segment.trim().isEmpty()) finalFileName = segment;
+				else finalFileName = createTimeBasedName() + suffix;
 				
 			} else if (finalFileNameMode == FileName.TIME_BASED) {
 				finalFileName = createTimeBasedName() + suffix;
@@ -326,6 +328,17 @@ final class DownloadRequest {
 		}
 	}
 	
+	private static String createTimeBasedName() {
+		java.text.SimpleDateFormat format = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US);
+		return format.format(new java.util.Date());
+	}
+	
+	String getOverwriteKey() {
+		if (overwritePath != null && !overwritePath.trim().isEmpty()) return "path:" + overwritePath;
+		if (overwriteUri != null) return "uri:" + overwriteUri.toString();
+		return null;
+	}
+	
 	private static final class ResolvedName {
 		final String fileName;
 		final String mimeType;
@@ -338,16 +351,5 @@ final class DownloadRequest {
 			this.fileNameMode = fileNameMode;
 			this.mimeTypeMode = mimeTypeMode;
 		}
-	}
-	
-	private static String createTimeBasedName() {
-		java.text.SimpleDateFormat format = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US);
-		return format.format(new java.util.Date());
-	}
-	
-	String getOverwriteKey() {
-		if (overwritePath != null && !overwritePath.trim().isEmpty()) return "path:" + overwritePath;
-		if (overwriteUri != null) return "uri:" + overwriteUri.toString();
-		return null;
 	}
 }
