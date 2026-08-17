@@ -263,6 +263,7 @@ public final class DownloadService extends Service {
 		return START_NOT_STICKY;
 	}
 	
+	@Override
 	public void onTimeout(int startId, int fgsType) {
 		handleForegroundTimeout(startId);
 	}
@@ -432,7 +433,7 @@ public final class DownloadService extends Service {
 		if (!isNotificationAllowed(task)) return;
 		task.mNotificationDismissed = false;
 		if (!groupTasks.contains(task.mId)) addToGroup(task);
-        String text = "Resumeing • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
+        String text = "Resuming • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
 		postProgressNotification(task, text, speedSubText(task), task.mProgress, false, false, true);
 	}
 	
@@ -751,8 +752,6 @@ public final class DownloadService extends Service {
 		
 		try {
 			notificationExecutor.execute(work);
-		} catch (RejectedExecutionException ignored) {
-			//
-		}
+		} catch (RejectedExecutionException ignored) {}
 	}
 }
