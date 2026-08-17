@@ -41,6 +41,7 @@ public final class TaskField<T> {
     public static final TaskField<String> OVERWRITE_PATH = new TaskField<String>("overwrite_path", String.class, ValueType.NORMAL);
 	public static final TaskField<Uri> OUTPUT_FOLDER_URI = new TaskField<Uri>("tree_uri", Uri.class, ValueType.NORMAL);
 	public static final TaskField<String> OUTPUT_FOLDER_PATH = new TaskField<String>("output_folder_path", String.class, ValueType.NORMAL);
+    public static final TaskField<String> SUB_FOLDER_PATH = new TaskField<String>("sub_folder_path", String.class, ValueType.NORMAL);
     public static final TaskField<Boolean> DELETE_ON_REMOVAL = new TaskField<Boolean>("delete_on_removal", Boolean.class, ValueType.BOOLEAN);
 	public static final TaskField<Boolean> LOCKED_IN_QUEUE = new TaskField<Boolean>("locked_in_queue", Boolean.class, ValueType.BOOLEAN);
 	
