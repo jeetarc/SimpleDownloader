@@ -42,18 +42,10 @@ final class NotificationBuilder {
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
 		NotificationChannel channel = new NotificationChannel(config.channelId, config.channelName, config.channelImportance);
 		if (config.channelDescription != null) channel.setDescription(config.channelDescription);
-		
-		if (!config.soundEnabled) {
-			channel.setSound(null, null);
-		} else if (config.soundUri != null) {
-			channel.setSound(config.soundUri, null);
-		}  
-		
+		if (!config.soundEnabled) channel.setSound(null, null);
+		else if (config.soundUri != null) channel.setSound(config.soundUri, null);
 		channel.enableVibration(config.vibrationEnabled);
-		if (config.vibrationEnabled && config.vibrationPattern != null) {
-			channel.setVibrationPattern(config.vibrationPattern);
-		}  
-		
+		if (config.vibrationEnabled && config.vibrationPattern != null) channel.setVibrationPattern(config.vibrationPattern);
 		notificationManager.createNotificationChannel(channel);
 	}  
 	
@@ -100,11 +92,8 @@ final class NotificationBuilder {
 		if (thumb != null) b.setLargeIcon(thumb);
 		
 		if (config.showPauseAction) {  
-			if (paused) {  
-				b.addAction(android.R.drawable.ic_media_play, "Resume", serviceAction(DownloadService.ACTION_RESUME, task.mId));
-			} else {  
-				b.addAction(android.R.drawable.ic_media_pause, "Pause", serviceAction(DownloadService.ACTION_PAUSE, task.mId));
-			}  
+			if (paused) b.addAction(android.R.drawable.ic_media_play, "Resume", serviceAction(DownloadService.ACTION_RESUME, task.mId));
+			else b.addAction(android.R.drawable.ic_media_pause, "Pause", serviceAction(DownloadService.ACTION_PAUSE, task.mId));
 		}  
 		
 		if (config.showCancelAction) b.addAction(android.R.drawable.ic_delete, "Cancel", serviceAction(DownloadService.ACTION_CANCEL, task.mId));
@@ -208,7 +197,6 @@ final class NotificationBuilder {
 	
 	private void applyCommon(Notification.Builder builder) {
 		builder.setOnlyAlertOnce(true);
-		
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) builder.setVisibility(config.lockscreenVisibility);
 		if (!config.soundEnabled) builder.setSound(null);
 		if (!config.vibrationEnabled) builder.setVibrate(null);
