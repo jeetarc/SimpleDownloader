@@ -114,8 +114,8 @@ final class DownloadRequest {
 		}
 		
 		Builder putOutput(Uri folderUri, String fileName) {
-			if (folderUri == null) throw new IllegalArgumentException("setOutput(Uri, String, String): Uri cannot be null. Use a valid folder Uri from ACTION_OPEN_DOCUMENT_TREE.");
-			if (fileName == null || fileName.trim().isEmpty()) throw new IllegalArgumentException("setOutput(Uri, String, String): String fileName cannot be null or empty. Use a file name such as 'video.mp4'.");
+			if (folderUri == null) throw new IllegalArgumentException("setOutput(Uri, String): folderUri cannot be null");
+			if (fileName == null || fileName.trim().isEmpty()) throw new IllegalArgumentException("setOutput(Uri, String): fileName cannot be null or empty. Use a file name such as 'video.mp4'.");
 			clearOutput();
 			
 			if (isMediaStoreCollectionUri(folderUri)) this.mediaStoreUri = folderUri; else this.treeUri = folderUri;
@@ -124,8 +124,8 @@ final class DownloadRequest {
 		}
 		
 		Builder putOutput(Uri folderUri, FileName fileName) {
-			if (folderUri == null) throw new IllegalArgumentException("setOutput(Uri, FileName, MimeType): Uri cannot be null. Use a valid folder Uri from ACTION_OPEN_DOCUMENT_TREE.");
-			if (fileName == null) throw new IllegalArgumentException("setOutput(Uri, FileName, MimeType): FileName cannot be null. Use FileName.AUTO or another supported FileName mode.");
+			if (folderUri == null) throw new IllegalArgumentException("setOutput(Uri, FileName): folderUri cannot be null.");
+			if (fileName == null) throw new IllegalArgumentException("setOutput(Uri, FileName): fileName cannot be null.");
 			clearOutput();
 			
 			if (isMediaStoreCollectionUri(folderUri)) this.mediaStoreUri = folderUri; else this.treeUri = folderUri;
@@ -145,7 +145,7 @@ final class DownloadRequest {
 		
 		Builder putOutput(String folderPath, FileName fileName) {
 			if (folderPath == null || folderPath.trim().isEmpty()) throw new IllegalArgumentException("setOutput(String, FileName): folderPath cannot be null or empty.");
-			if (fileName == null) throw new IllegalArgumentException("setOutput(String, FileName): FileName cannot be null.");
+			if (fileName == null) throw new IllegalArgumentException("setOutput(String, FileName): fileName cannot be null.");
 			clearOutput();
 			
 			outputFolderPath = folderPath.trim();
