@@ -19,9 +19,10 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
-
 import com.jeet.simpledownloader.thumbnail.ThumbRequest;
 import com.jeet.simpledownloader.thumbnail.ThumbLoader;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 /**
 * {@code DownloadTask} is a live task object and provides access to it's state, output,
@@ -42,6 +43,8 @@ public class DownloadTask {
 	String mOutputPath;
 	File mOutputFile;
 	final Uri mOverwriteUri;
+	final Uri mMediaStoreUri;
+	final String mSubFolderPath;
 	volatile String mFileName;
 	volatile String mMimeType;
 	volatile FileName mFileNameMode;
@@ -80,8 +83,9 @@ public class DownloadTask {
 	volatile boolean mCancelRequested = false;
 	volatile boolean mRefreshRequested = false;
 	volatile boolean mRequeueRequested = false;
-    volatile boolean mNetworkPaused = false;
-    volatile boolean mForceDownload = false;
+	volatile boolean mNetworkPaused = false;
+	volatile boolean mShutdownRequested = false;
+	volatile boolean mForceDownload = false;
 	volatile boolean mManualRetryPending = false;
 	private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 	private volatile Future<?> mFuture;
@@ -108,6 +112,8 @@ public class DownloadTask {
 		mOverwritePath = request.overwritePath;
 		mOverwriteUri = request.overwriteUri;
 		mOutputUri = request.overwriteUri;
+		mMediaStoreUri = request.mediaStoreUri;
+		mSubFolderPath = request.subFolderPath;
 		mFileName = request.fileName;
 		mFileNameMode = request.fileNameMode;
 		mMimeTypeMode = request.mimeTypeMode;
@@ -141,9 +147,11 @@ public class DownloadTask {
 		if (mOutputPath != null && mOutputPath.length() > 0) mOutputFile = new File(mOutputPath);
 		mOverwriteUri = parseUri(state.overwriteUri);
 		mOutputUri = parseUri(state.outputUri);
+		mMediaStoreUri = parseUri(state.mediaStoreUri);
+		mSubFolderPath = state.subFolderPath;
 		if (mOutputUri == null && mOverwriteUri != null) mOutputUri = mOverwriteUri;
 		
-		if (mOutputPath == null && mOutputUri != null && "content".equals(mOutputUri.getScheme())) {
+		if (mOutputPath == null && mMediaStoreUri == null && mOutputUri != null && "content".equals(mOutputUri.getScheme())) {
 			mOutputDocFile = DocumentFile.fromSingleUri(mContext, mOutputUri);
 		}
 		
@@ -155,13 +163,10 @@ public class DownloadTask {
 		mFileUrl = state.fileUrl;
 		mUserAgent = state.userAgent;
 		
-		if (state.headers == null || state.headers.isEmpty()) {
-			mHeaders = Collections.emptyMap();
-		} else {
-			mHeaders = Collections.unmodifiableMap(new HashMap<String, String>(state.headers));
-		}
+        if (state.headers == null || state.headers.isEmpty()) mHeaders = Collections.emptyMap();
+        else mHeaders = Collections.unmodifiableMap(new HashMap<String, String>(state.headers));
 		
-		mCookies = state.cookies;
+        mCookies = state.cookies;
 		mChecksumAlgorithm = state.checksumAlgorithm;
 		mChecksumValue = state.checksumValue;
 		mId = state.id;
@@ -215,7 +220,7 @@ public class DownloadTask {
 		if (status == Status.QUEUED || status == Status.PAUSED || status == Status.WAITING_FOR_NETWORK) {
 			mDownloader.slotManager.removeQueuedTask(this);
 			setStatus(Status.CANCELLED);
-			deleteOutput();
+			OutputResolver.deleteOutput(this);
 			EventDispatcher.onCancelled(this);
 			mDownloader.slotManager.finishTask(this, true, true);
 			return;
@@ -235,7 +240,7 @@ public class DownloadTask {
 		}
 		
 		boolean deleted = false;
-		if (mDeleteOnRemoval) deleted = deleteOutput();
+		if (mDeleteOnRemoval) deleted = OutputResolver.deleteOutput(this);
 		
 		synchronized (mDownloader.mLock) {
 			SimpleDownloader.taskManager.clearAutoSpeedLocked(this);
@@ -346,15 +351,13 @@ public class DownloadTask {
 	}
 	
 	public long getId() { return mId; }
+    @NonNull    
 	public String getFileUrl() { return mFileUrl; }
-	public String getFileName() { return mOutputName == null || mOutputName.isEmpty() ? mFileName : mOutputName; }
-	public String getMimeType() { return mMimeType; }
-	public Uri getOutputUri() { return mOutputUri; }
-	public File getOutputFile() { return mOutputFile; }
-	public String getOutputFolderPath() { return mOutputFolderPath; }
-	public String getOutputPath() { return mOutputPath; }
-	public DocumentFile getOutputDocumentFile() { return mOutputDocFile; }
-	public long getTotalBytes() { return mTotalBytes; }
+	@NonNull
+    public String getFileName() { return mOutputName == null || mOutputName.isEmpty() ? mFileName : mOutputName; }
+	@NonNull
+    public String getMimeType() { return mMimeType; }
+    public long getTotalBytes() { return mTotalBytes; }
 	public long getDownloadedBytes() { return mBytesDownloaded; }
 	public long getSpeed() { return mSpeed; }
 	public int getProgress() { return mProgress; }
@@ -365,21 +368,44 @@ public class DownloadTask {
 	public String getCookies() { return mCookies; }
 	public boolean isWifiOnly() { return mWifiOnly; }
 	public int getBufferSize() { return mBufferSize; }
-	public Priority getPriority() { return mPriority; }
-	public Status getStatus() { return status; }
-	public Uri getTreeUri() { return mTreeUri; }
-	public Uri getOverwriteUri() { return mOverwriteUri; }
-	public Exception getError() { return mLastError; }
-	public SimpleDownloader getDownloader() { return mDownloader; }
+	@NonNull
+    public Priority getPriority() { return mPriority; }
+	@NonNull
+    public Status getStatus() { return status; }
+	@Nullable
+    public Exception getError() { return mLastError; }
+	@NonNull
+    public SimpleDownloader getDownloader() { return mDownloader; }
 	public int getMaxRetryCount() { return mMaxRetryCount; }
-	public boolean canPause() { return isActive() || status == Status.QUEUED || status == Status.WAITING_FOR_NETWORK; }
+	@Nullable
+    public Uri getOutputUri() { return mOutputUri; }
+    @Nullable
+    public String getOutputPath() { return mOutputPath; }
+    @Nullable
+    public Uri getOutputFolderUri() { return mTreeUri; }
+	@Nullable
+    public String getOutputFolderPath() { return mOutputFolderPath; }
+	@Nullable
+    public String getSubFolderPath() { return mSubFolderPath; }    
+	@Nullable
+    public File getOutputFile() { return mOutputFile; }
+	@Nullable
+    public DocumentFile getOutputDocumentFile() { return mOutputDocFile; }
+	@Nullable
+    public Uri getOverwriteUri() { return mOverwriteUri; }
+    @Nullable
+    public String getOverwritePath() { return mOverwritePath; }
+    public boolean canPause() { return isActive() || status == Status.QUEUED || status == Status.WAITING_FOR_NETWORK; }
 	public boolean canResume() { return status == Status.PAUSED; }
 	public boolean canRetry() { return status == Status.FAILED; }    
 	public boolean isWaitingForNetwork() { return status == Status.WAITING_FOR_NETWORK; }
-	public boolean isFinished() { return status == Status.COMPLETED || status == Status.FAILED || status == Status.CANCELLED; }    
 	public boolean isQueued() { return status == Status.QUEUED; }
 	public boolean isPaused() { return status == Status.PAUSED; }
+	public boolean isComplete() { return status == Status.COMPLETED; }
 	public boolean isActive() { return status == Status.DOWNLOADING || status == Status.CONNECTING || status == Status.RETRYING; }
+	public boolean isFailed() { return status == Status.FAILED; }
+	public boolean isCancelled() { return status == Status.CANCELLED; }
+	public boolean isFinished() { return status == Status.COMPLETED || status == Status.FAILED || status == Status.CANCELLED; }        
 	public boolean isOccupiedSlot() { return mDownloader.slotManager.isOccupiedSlot(this); }
 	public boolean isDeleteOnRemoval() { return mDeleteOnRemoval; }
 	public boolean isLockedInQueue() { return mLockedInQueue; }
@@ -444,16 +470,12 @@ public class DownloadTask {
 	
 	void cancelRunningCall() {
 		Call call = mCurrentCall;
-		
-		if (call != null) {
-			call.cancel();
-		} else if (stopRequested()) {
-			cancelFuture();
-		}
+		if (call != null) call.cancel(); else if (stopRequested()) cancelFuture();
 	}
 	
 	void stopForShutdown() {
-		mPauseRequested = true;
+		mShutdownRequested = true;
+		mPauseRequested = false;
 		mCancelRequested = false;
 		mRemoveRequested = false;
 		mRequeueRequested = false;
@@ -464,37 +486,15 @@ public class DownloadTask {
 		cancelFuture();
 		clearFuture();
 		
-		if (status == Status.CONNECTING || status == Status.DOWNLOADING || status == Status.RETRYING || status == Status.WAITING_FOR_NETWORK) {
+		if (isActive() || status == Status.WAITING_FOR_NETWORK || status == Status.STARTING) {
 			status = Status.PAUSED;
 			mSpeed = 0;
 			mEta = -1;
-			if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.updateStatus(mId, Status.PAUSED, mBytesDownloaded, mProgress);
-			
-		} else if (status == Status.QUEUED) {
-			if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.updateStatus(mId, Status.QUEUED, mBytesDownloaded, mProgress);
-		}
-	}
-	
-	boolean deleteOutput() {
-		try {
-			
-			if (mOutputFile != null) return !mOutputFile.exists() || mOutputFile.delete();
-			if (mOutputPath != null && !mOutputPath.isEmpty()) {
-				File file = new File(mOutputPath);
-				return !file.exists() || file.delete();
-			}
-			
-			if (mOutputDocFile != null) return !mOutputDocFile.exists() || mOutputDocFile.delete();
-			return true;
-			
-		} catch (Exception error) {
-			System.err.println("SimpleDownloader: " + error.toString());
-			return false;
 		}
 	}
 	
 	boolean stopRequested() {
-		return mPauseRequested || mCancelRequested || mRemoveRequested || mNetworkPaused || mRefreshRequested || mRequeueRequested;
+		return mPauseRequested || mCancelRequested || mRemoveRequested || mNetworkPaused || mRefreshRequested || mShutdownRequested || mRequeueRequested;
 	}
 	
 	void resetStopFlags() {
@@ -503,6 +503,7 @@ public class DownloadTask {
 		mNetworkPaused = false;
 		mRemoveRequested = false;
 		mRefreshRequested = false;
+		mShutdownRequested = false;
 		mRequeueRequested = false;
 	}
 	
@@ -538,11 +539,7 @@ public class DownloadTask {
 		if (request != null && loader != null) loader.cancel(request);
 		
 		if (call != null) {
-			if (loader != null) {
-				loader.cancelUrl(call);
-			} else {
-				call.cancel();
-			}
+			if (loader != null) loader.cancelUrl(call); else call.cancel();
 		}
 	}
 	
@@ -557,3 +554,4 @@ public class DownloadTask {
 		return null;
 	}
 }
+
