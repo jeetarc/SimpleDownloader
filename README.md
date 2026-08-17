@@ -11,7 +11,7 @@ The simple API:
 ```java
 DownloadTask task = SimpleDownloader.with(context)
     .enableForeground(true)
-    .setOutput(folderPath, FileName.AUTO) // or .setOutput(folderUri, FileName.AUTO, MimeType.AUTO)
+    .setOutput(folderPath, FileName.AUTO) // Or .setOutput(folderUri, FileName)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
@@ -23,12 +23,13 @@ DownloadTask task = SimpleDownloader.with(context)
 - Pause, resume, cancel, retry, remove, requeue, and force download
 - Resume using HTTP range requests
 - Network loss handling and Wi-Fi-only downloads
-- Task persistence and restoration with filter.
-- Android scoped-storage support using folder and document URIs
-- File-system path output
+- Task persistence and restoration with filters.
+- Complete built-in storage support for filesystem paths, SAF/document-tree output, and MediaStore output.
+- Built-in Subfolder support
+- Built-in file overwrite support
 - Automatic file name and MIME type resolution
 - Progress, speed, ETA, status, and lifecycle callbacks
-- Progress, completion, and error notifications with action, thumbnail, etc.
+- Progress, completion, and error notifications with actions, thumbnails, and more.
 - Optional foreground execution
 - Custom OkHttpClient support
 - Custom task Comparator
@@ -54,10 +55,9 @@ Add SimpleDownloader to your app module:
 
 ```gradle
 dependencies {
-    implementation "com.github.jeetarc:SimpleDownloader:1.0.0-beta.2"
+    implementation "com.github.jeetarc:SimpleDownloader:1.0.0-beta.3"
 }
 ```
-
 SimpleDownloader is built with Java 8 and compileSdk 35.
 
 ## Setup
@@ -81,35 +81,15 @@ If using normal file path, add:
 <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 ```
 And request the permission at runtime.
-Storage permissions are not needed when saving to app-specific folder or using folderUri via Storage Access Framework.
+Storage permissions are not needed when saving to app-specific folder or using folderUri via MediaStore or Storage Access Framework.
 
 > All other permissions are added by default.
 
 ## Quick start
 
-**Download into a selected folder:**
+SimpleDownloader has three built-in storage modes.
 
-Using a folder URI from folder picker:
-
-```java
-DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(folderUri, FileName.AUTO, MimeType.AUTO)
-    .setFileUrl("https://example.com/files/document.pdf")
-    .startDownload();
-```
-
-SimpleDownloader creates a new file inside the folder. If a file with the same name already exists, it creates a unique name.
-
-Keep the folder permission for download to survive app restart:
-
-```java
-int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
-
-getContentResolver().takePersistableUriPermission(folderUri, flags);
-```
-
-**Download into a file system folder:**
+**1. Download into a file system folder:**
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
@@ -118,18 +98,52 @@ DownloadTask task = SimpleDownloader.with(context)
     .startDownload();
 ```
 
-**Use a fixed name and MIME when known:**
+**2. Download into a MediaStore collection (Android 10+):**
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(folderUri, "manual.pdf", "application/pdf")
+    .setOutput(MediaStore.Downloads.EXTERNAL_CONTENT_URI, FileName.AUTO)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
 
+You can also use other MediaStore collections:
+```java
+MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+```
+
+**3. Download into a selected folder via SAF/document-tree:**
+
+```java
+DownloadTask task = SimpleDownloader.with(context)
+    .setOutput(treeUri, FileName.AUTO)
+    .setFileUrl("https://example.com/files/document.pdf")
+    .startDownload();
+```
+
+Keep the URI permission:
+```java
+int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+
+getContentResolver().takePersistableUriPermission(treeUri, flags);
+```
+
+**Use a custom name if needed:**
+```java
+DownloadTask task = SimpleDownloader.with(context)
+    .setOutput(folderUri, "example.mp4")
+    .setFileUrl(fileUrl)
+    .startDownload();
+```
+
+> SimpleDownloader creates a new file inside each folder. If a file with the same name already exists, it creates a unique name automatically.
+
 **Overwrite a file:**
 
-Use a document URI:
+Use a DocumentFile URI or a specific MediaStore item URI:
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
@@ -146,6 +160,19 @@ DownloadTask task = SimpleDownloader.with(context)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
+
+## Subfolder:
+A subfolder is an optional folder inside the main output folder where you want the downloaded file to be saved.
+
+```java
+DownloadTask task = SimpleDownloader.with(context)
+    .setOutput(folderUri, FileName.AUTO)
+    .setSubFolder("app")
+    .setFileUrl(fileUrl)
+    .startDownload();
+```
+
+Subfolders can be nested, for example `"app/videos"`. They work with filesystem paths, SAF/document-tree output, and MediaStore output.
 
 ## Listener for download updates
 
@@ -172,7 +199,7 @@ DownloadListener listener = new DownloadListener() {
 };
 
 DownloadTask task = SimpleDownloader.with(this)
-    .setOutput(folderUri, FileName.AUTO, MimeType.AUTO)
+    .setOutput(folderUri, FileName.AUTO)
     .setFileUrl(fileUrl)
     .addListener(listener)
     .startDownload();
@@ -194,7 +221,7 @@ onActiveChanged(long id, boolean isActive, DownloadTask task) {}
 onLifecycleChanged(long id, int lifecycle, DownloadTask task) {}
 ```
 
-`onStart()` can run again on resume, retry, etc. use `onLifecycleChanged()`. to know start or end for the full lifestyle.
+`onStart()` can run again on resume and retry. Use `onLifecycleChanged()` to know the start or end of the full task lifecycle.
 
 You can also add listeners directly on a task:
 
@@ -280,8 +307,11 @@ task.getMimeType();
 task.getOutputUri();
 task.getOutputFile();
 task.getOutputDocumentFile();
-task.getOutputPath();
+task.getOutputFolderUri();
 task.getOutputFolderPath();
+task.getSubFolderPath();
+task.getOutputPath();
+task.getOverwriteUri();
 
 task.getProgress();
 task.getDownloadedBytes();
@@ -301,20 +331,6 @@ task.isPaused();
 task.isWaitingForNetwork();
 task.isFinished();
 task.isOccupiedSlot();
-```
-
-get task from registry:
-
-```java
-DownloadTask task = SimpleDownloader.getTask(id);
-List<DownloadTask> all = SimpleDownloader.getTasks();
-List<DownloadTask> completed = SimpleDownloader.getTasks(TaskField.STATUS, Status.COMPLETED);
-
-int total = SimpleDownloader.getTotalCount();
-int active = SimpleDownloader.getActiveCount();
-int queued = SimpleDownloader.getQueuedCount();
-int occupied = SimpleDownloader.getOccupiedCount();
-int concurrency = SimpleDownloader.getEffectiveMaxConcurrent();
 ```
 
 ## Reuse a configured instance
@@ -344,7 +360,8 @@ Then use the configured instance whenever you start a download:
 
 ```java
 DownloadTask task = downloader
-    .setOutput(folderUri, fileName, mimeType)
+    .setOutput(folderUri, fileName)
+    .setMimeType(mimeType)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
@@ -390,6 +407,21 @@ SimpleDownloader.remove(Status.COMPLETED);
 SimpleDownloader.remove(Priority.LOW);
 ```
 
+get task from registry:
+
+```java
+DownloadTask task = SimpleDownloader.getTask(id);
+List<DownloadTask> all = SimpleDownloader.getTasks();
+List<DownloadTask> completed = SimpleDownloader.getTasks(TaskField.STATUS, Status.COMPLETED);
+SimpleDownloader.getTask(TaskField.FILE_NAME, fileName) // returns latest matching single task, null if not found.
+
+int total = SimpleDownloader.getTotalCount();
+int active = SimpleDownloader.getActiveCount();
+int queued = SimpleDownloader.getQueuedCount();
+int occupied = SimpleDownloader.getOccupiedCount();
+int concurrency = SimpleDownloader.getEffectiveMaxConcurrent();
+```
+
 Update a task by ID:
 
 ```java
@@ -398,18 +430,36 @@ SimpleDownloader.setWifiOnly(id, true);
 SimpleDownloader.setLockedInQueue(id, true);
 SimpleDownloader.setDeleteOnRemoval(id, true);
 ```
-Those are static.
 
-## Restore tasks after app restart
+## Restore tasks
+Restore methods immediately restore saved tasks using the downloader's current configuration.
 
-Active Tasks are stored automatically. Restore them when your app is ready to show or continue downloads:
+> **Important:** Configure all downloader settings before calling any restore method.
+> Restore methods should always be the **last configuration call**, otherwise restored tasks may not receive the configuration called after restore.
+
+### Automatic Restore:
+
+Enable automatic restoration of previously saved download tasks:
 
 ```java
-SimpleDownloader downloader = SimpleDownloader.with(this)
-    .addListener(listener)
-    .addObserver(observer);
+SimpleDownloader downloader = SimpleDownloader.with(context)
+    .setRetryPolicy(...)
+    .enableNotifications(true)
+    .enableForeground(true)
+    .setConnectTimeout(30_000)
+    .setReadTimeout(30_000)
+    .setProgressInterval(300)
+    .setNotification(...)
+    .setAutoRestore(true); // Keep this last.
+```
+When enabled, SimpleDownloader automatically restores previously saved tasks and resumes eligible ones.
+You do not need to call restoreTasks() separately when using auto restore.
+Auto restore is disabled by default.
 
-List<DownloadTask> restored = downloader.restoreTasks();
+### Explicit restore when your app ready to show or continue downloads:
+
+```java
+restored = downloader.restoreTasks();
 ```
 
 Active tasks are restored as paused. Resume the tasks you want to continue:
@@ -423,8 +473,8 @@ for (DownloadTask task : restored) {
 }
 ```
 
-### Restore matching tasks
-`restoreTasks()` returns an empty list when no match:
+### Restore matching tasks:
+`restoreTasks(...)` returns an empty list when no match:
 ```java
 List<DownloadTask> paused = downloader.restoreTasks(TaskField.STATUS, Status.PAUSED);
 
@@ -461,6 +511,7 @@ TaskField.OVERWRITE_URI
 TaskField.OVERWRITE_PATH
 TaskField.OUTPUT_FOLDER_URI
 TaskField.OUTPUT_FOLDER_PATH
+TaskField.SUB_FOLDER_PATH
 TaskField.DELETE_ON_REMOVAL
 TaskField.LOCKED_IN_QUEUE
 ```
@@ -535,11 +586,29 @@ SimpleDownloader downloader = SimpleDownloader.with(context)
 
 Retry settings stay on the `SimpleDownloader` instance used to create or restore tasks.
 
+## MIME Type
+A MIME type (media type) is a used to identify the format of a file:
+
+```java
+DownloadTask task = SimpleDownloader.with(context)
+    .setOutput(folderUri, "manual.pdf")
+    .setMimeType("application/pdf")
+    .setFileUrl(fileUrl)
+    .startDownload();
+```
+
+Or use automatic resolution:
+```java
+.setMimeType(MimeType.AUTO) // or MimeType.FROM_NAME
+```
+
+SimpleDownloader handles this automatically When no MIME type is specified.
+
 ## Network, headers, cookies
 
 ```java
 DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(folderUri, FileName.AUTO, MimeType.AUTO)
+    .setOutput(folderUri, FileName.AUTO)
     .setFileUrl(fileUrl)
     .setHeader("Authorization", "Bearer " + token)
     .setHeader("Referer", pageUrl)
@@ -584,7 +653,7 @@ Waiting tasks resume when the network becomes available by default. Change with:
 
 ```java
 SimpleDownloader.with(context)
-    .enableRetryOnNetworkGain(false);
+    .enableResumeOnNetworkGain(false);
 ```
 
 ## Notifications
@@ -604,7 +673,7 @@ DownloadNotification notification = new DownloadNotification()
 DownloadTask task = SimpleDownloader.with(context)
     .enableNotifications(true)
     .setNotification(notification)
-    .setOutput(folderUri, FileName.AUTO, MimeType.AUTO)
+    .setOutput(folderUri, FileName.AUTO)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
@@ -615,7 +684,7 @@ Run tasks using a foreground service:
 ```java
 SimpleDownloader.with(context)
     .enableForeground(true)
-    .setOutput(folderUri, FileName.AUTO, MimeType.AUTO)
+    .setOutput(folderUri, FileName.AUTO)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
@@ -645,7 +714,7 @@ Verify the completed file with algorithms supported by `MessageDigest`. Like SHA
 ```java
 DownloadTask task = SimpleDownloader.with(context)
     .setChecksum("SHA-256", expectedChecksum)
-    .setOutput(folderUri, FileName.AUTO, MimeType.AUTO)
+    .setOutput(folderUri, FileName.AUTO)
     .setFileUrl(fileUrl)
     .startDownload();
 ```
@@ -662,7 +731,7 @@ MimeType.AUTO
 MimeType.FROM_NAME
 ```
 
-`AUTO` use the URL, response headers, file extension, content type to resolve name and MIME.
+`AUTO` uses the URL, response headers, file extension, and content type to resolve the name and MIME type.
 
 ## Error handling
 
@@ -773,7 +842,6 @@ You do not need to call `shutdown()` normally or when an Activity is destroyed.
 ## Support
 
 Found a problem or have a suggestion? Open an issue:
-
-[github.com/jeetarc/SimpleDownloader/issues](https://github.com/jeetarc/SimpleDownloader/issues)
+https://github.com/jeetarc/SimpleDownloader/issues)
 
 Copyright © 2026 Jeet / Jeetarc.
