@@ -15,6 +15,8 @@ final class TaskState {
 	String outputUri;
 	String treeUri;
 	String overwriteUri;
+    String mediaStoreUri;
+    String subFolderPath;
 	String outputFolderPath;
 	String overwritePath;
 	String outputPath;
