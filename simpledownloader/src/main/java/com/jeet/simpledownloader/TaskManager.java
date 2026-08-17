@@ -361,28 +361,33 @@ final class TaskManager {
 		return false;
 	}
 	
-	List<DownloadTask> restoreTasks(SimpleDownloader requester, List<TaskState> states) {
+	List<DownloadTask> restoreTasks(SimpleDownloader requester, List<TaskState> states, boolean autoRestore) {
 		List<DownloadTask> restored = new ArrayList<DownloadTask>();
 		if (requester == null || states == null || states.isEmpty()) return restored;
 		
 		synchronized (downloader.mLock) {
 			for (TaskState state : states) {
-				DownloadTask task = restoreTaskFromStateLocked(requester, state);
+				DownloadTask task = restoreTaskFromStateLocked(requester, state, autoRestore);
 				if (task != null) restored.add(task);
 			}
 			
 			addTasksLocked(restored);
 			downloader.slotManager.sortHeldQueueLocked();
+			if (autoRestore) downloader.slotManager.submitReadyHeldTasksLocked();
 		}
 		
 		return restored;
+	}
+	
+	List<DownloadTask> restoreTasks(SimpleDownloader requester, List<TaskState> states) {
+		return restoreTasks(requester, states, false);
 	}
 	
 	DownloadTask restoreTask(SimpleDownloader requester, TaskState state) {
 		if (requester == null || state == null) return null;
 		
 		synchronized (downloader.mLock) {
-			DownloadTask task = restoreTaskFromStateLocked(requester, state);
+			DownloadTask task = restoreTaskFromStateLocked(requester, state, false);
 			
 			if (task != null) {
 				addTaskLocked(task);
@@ -393,7 +398,7 @@ final class TaskManager {
 		}
 	}
 	
-	private DownloadTask restoreTaskFromStateLocked(SimpleDownloader requester, TaskState state) {
+	private DownloadTask restoreTaskFromStateLocked(SimpleDownloader requester, TaskState state, boolean autoRestore) {
 		if (state == null) return null;
 		DownloadTask existing = getTask(state.id);
 		
@@ -407,7 +412,7 @@ final class TaskManager {
 		
 		attachRestoreListenerLocked(requester, task);
 		putTaskLocked(task);
-		restoreTaskPositionLocked(task, state.status);
+		restoreTaskPositionLocked(task, state.status, autoRestore);
 		notifyRestoredTask(task);
 		return task;
 	}
@@ -418,38 +423,31 @@ final class TaskManager {
 		trackListenerOwnerLocked(requester.mListenerOwnerKey, task.mId);
 	}
 	
-	private void restoreTaskPositionLocked(DownloadTask task, Status restored) {
+	private void restoreTaskPositionLocked(DownloadTask task, Status restored, boolean autoRestore) {
 		if (task == null) return;
 		if (restored == null) restored = Status.PAUSED;
-		boolean networkAvailable = downloader.networkManager.isNetworkAvailable();
-		int networkType = downloader.networkManager.getNetworkType();
-		boolean wasActiveBeforeClose = restored == Status.CONNECTING || restored == Status.DOWNLOADING || restored == Status.RETRYING;
 		
-		if (wasActiveBeforeClose || restored == Status.PAUSED || restored == Status.QUEUED) {
+		if (restored == Status.PAUSED) {
 			if (!downloader.slotManager.pauseRestoredTaskLocked(task)) {
 				downloader.slotManager.restoreQueuedTaskLocked(task);
 			}
-			
 			return;
 		}
 		
-		if (restored == Status.WAITING_FOR_NETWORK) {
-			boolean noPreferredNetwork = networkAvailable && task.mWifiOnly && networkType != SimpleDownloader.NETWORK_TYPE_WIFI;
-			
-			if (noPreferredNetwork) {
-				task.setStatusRestored(Status.WAITING_FOR_NETWORK);
-				
-				if (!downloader.networkManager.getWaitingForPreferredNetwork().contains(task)) {
-					downloader.networkManager.getWaitingForPreferredNetwork().add(task);
-				}
-				
-			} else if (!downloader.slotManager.pauseRestoredTaskLocked(task)) {
+		boolean unfinished = restored == Status.STARTING || restored == Status.CONNECTING || restored == Status.DOWNLOADING
+		|| restored == Status.RETRYING || restored == Status.QUEUED || restored == Status.WAITING_FOR_NETWORK;
+		
+		if (unfinished) {
+			if (autoRestore) {
 				downloader.slotManager.restoreQueuedTaskLocked(task);
+				
+			} else {
+				if (!downloader.slotManager.pauseRestoredTaskLocked(task)) downloader.slotManager.restoreQueuedTaskLocked(task);
 			}
-			
 			return;
 		}
 		
+		// Completed, failed and cancelled remain same
 		task.setStatusRestored(restored);
 	}
 	
@@ -556,6 +554,10 @@ final class TaskManager {
 			
 			case "output_folder_path":
 			actual = task.mOutputFolderPath;
+			break;
+			
+			case "sub_folder_path":
+			actual = task.mSubFolderPath;
 			break;
 			
 			case "delete_on_removal":
