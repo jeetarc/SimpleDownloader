@@ -13,7 +13,9 @@ import java.util.List;
 import java.util.Map;
 import okhttp3.OkHttpClient;
 import java.util.Comparator;
+import android.os.Looper;
 import com.jeet.simpledownloader.thumbnail.ThumbLoader;
+import androidx.annotation.Nullable;
 
 /**
 * Main entry point for starting, restoring, and managing downloads.
@@ -51,28 +53,13 @@ public class SimpleDownloader {
 		return this;
 	}
 	
-	public SimpleDownloader setOutput(Uri treeUri, String fileName, String mimeType) {
-		mRequestBuilder.putOutput(treeUri, fileName, mimeType);
+	public SimpleDownloader setOutput(Uri folderUri, String fileName) {
+		mRequestBuilder.putOutput(folderUri, fileName);
 		return this;
 	}
 	
-	public SimpleDownloader setOutput(Uri treeUri, FileName fileNameMode, MimeType mimeTypeMode) {
-		mRequestBuilder.putOutput(treeUri, fileNameMode, mimeTypeMode);
-		return this;
-	}
-	
-	public SimpleDownloader setOutput(Uri treeUri, String fileName, MimeType mimeTypeMode) {
-		mRequestBuilder.putOutput(treeUri, fileName, mimeTypeMode);
-		return this;
-	}
-	
-	public SimpleDownloader setOutput(Uri treeUri, FileName fileNameMode, String mimeType) {
-		mRequestBuilder.putOutput(treeUri, fileNameMode, mimeType);
-		return this;
-	}
-	
-	public SimpleDownloader overwrite(Uri fileUri) {
-		mRequestBuilder.putOverwrite(fileUri);
+	public SimpleDownloader setOutput(Uri folderUri, FileName fileName) {
+		mRequestBuilder.putOutput(folderUri, fileName);
 		return this;
 	}
 	
@@ -81,8 +68,13 @@ public class SimpleDownloader {
 		return this;
 	}
 	
-	public SimpleDownloader setOutput(String folderPath, FileName fileNameMode) {
-		mRequestBuilder.putOutput(folderPath, fileNameMode);
+	public SimpleDownloader setOutput(String folderPath, FileName fileName) {
+		mRequestBuilder.putOutput(folderPath, fileName);
+		return this;
+	}
+	
+	public SimpleDownloader overwrite(Uri fileUri) {
+		mRequestBuilder.putOverwrite(fileUri);
 		return this;
 	}
 	
@@ -91,10 +83,25 @@ public class SimpleDownloader {
 		return this;
 	}
 	
+	public SimpleDownloader setSubFolder(String subFolder) {
+		mRequestBuilder.putSubFolder(subFolder);
+		return this;
+	}
+	
 	public SimpleDownloader setFileUrl(String fileUrl) {
 		mRequestBuilder.putFileUrl(fileUrl);
 		return this;
 	}
+    
+    public SimpleDownloader setMimeType(String mimeType) {
+        mRequestBuilder.putMimeType(mimeType);
+        return this;
+    }
+    
+    public SimpleDownloader setMimeType(MimeType mimeType) {
+        mRequestBuilder.putMimeType(mimeType);
+        return this;
+    }
 	
 	public SimpleDownloader setUserAgent(String userAgent) {
 		mRequestBuilder.putUserAgent(userAgent);
@@ -215,7 +222,7 @@ public class SimpleDownloader {
 		return this;
 	}
 	
-	public SimpleDownloader enableRetryOnNetworkGain(boolean enable) {
+	public SimpleDownloader enableResumeOnNetworkGain(boolean enable) {
 		networkManager.setRetryOnNetworkGain(enable);
 		return this;
 	}
@@ -261,6 +268,18 @@ public class SimpleDownloader {
 	
 	public SimpleDownloader addObserver(TaskListObserver observer) {
 		if (observer != null) taskManager.addObserver(mListenerOwnerKey, observer);
+		return this;
+	}
+	
+	public SimpleDownloader setAutoRestore(boolean enable) {
+		synchronized (mLock) {
+			mAutoRestore = enable;
+			
+			if (enable && !sAutoRestoreDone) {
+				taskManager.restoreTasks(this, taskDatabase.loadAllTaskStates(), true);
+				sAutoRestoreDone = true;
+			}
+		}
 		return this;
 	}
 	
@@ -311,6 +330,7 @@ public class SimpleDownloader {
 		return taskManager.restoreTasks(this, taskDatabase.loadTaskStates(field, value));
 	}
 	
+    @Nullable
 	public <T> DownloadTask restoreTask(TaskField<T> field, T value) {
 		return taskManager.restoreTask(this, taskDatabase.loadLatestTaskState(field, value));
 	}
@@ -352,9 +372,7 @@ public class SimpleDownloader {
 	}
 	
 	void validateNotificationConfigLocked() {
-		if (mForegroundEnabled && !mNotificationsEnabled) {
-			throw new IllegalStateException("cannot run foreground without notifications");
-		}
+		if (mForegroundEnabled && !mNotificationsEnabled) throw new IllegalStateException("cannot run foreground without notifications");
 	}
 	
 	public static void releaseCallbacks(Object owner) {
@@ -368,14 +386,10 @@ public class SimpleDownloader {
 	}
 	
 	public static void shutdown() {
-		SimpleDownloader downloader = sDefault;
-		if (downloader == null) return;
-		TaskDatabase databaseToClose = null;
-		DownloadExecutor executorToWait = null;
-		boolean fullyStopped = true;
+		final DownloadExecutor executorToWait;
 		
 		synchronized (S_LOCK) {
-			if (sDefault == null) return;
+			if (sDefault == null || sShuttingDown) return;
 			sShuttingDown = true;
 			DownloadService.shutdownServiceIfRunning();
 			
@@ -386,10 +400,23 @@ public class SimpleDownloader {
 			}
 			
 			if (networkManager != null) networkManager.shutdownLocked();
-			if (slotManager != null) executorToWait = slotManager.shutdownLocked();
+			executorToWait = slotManager != null ? slotManager.shutdownLocked() : null;
 		}
 		
-		if (executorToWait != null) fullyStopped = executorToWait.awaitTerminationQuietly(15000L);
+		Runnable cleanup = new Runnable() {
+			@Override
+			public void run() {
+				finishShutdown(executorToWait);
+			}
+		};
+		
+		if (Looper.myLooper() == Looper.getMainLooper()) new Thread(cleanup, "SimpleDownloader-Shutdown").start();
+        else cleanup.run();
+	}
+	
+	private static void finishShutdown(DownloadExecutor executorToWait) {
+		boolean fullyStopped = executorToWait == null || executorToWait.awaitTerminationQuietly(15_000L);
+		TaskDatabase databaseToClose = null;
 		
 		synchronized (S_LOCK) {
 			if (!fullyStopped) {
@@ -401,8 +428,8 @@ public class SimpleDownloader {
 			if (httpEngine != null) httpEngine.shutdown();
 			if (taskManager != null) taskManager.shutdownLocked();
 			if (thumbLoader != null) thumbLoader.shutdown();
-			
 			databaseToClose = taskDatabase;
+			
 			taskDatabase = null;
 			taskManager = null;
 			slotManager = null;
@@ -415,6 +442,8 @@ public class SimpleDownloader {
 			sEffectiveMaxConcurrent = AUTO_MIN_SLOT;
 			mDownloadOnSlotFree = true;
 			mEnableHistory = false;
+			mAutoRestore = false;
+			sAutoRestoreDone = false;
 			autoConcurrencyController.resetLocked();
 			sShuttingDown = false;
 		}
@@ -554,7 +583,8 @@ public class SimpleDownloader {
 		getDefaultDownloader();
 		return taskManager.getTasks();
 	}
-	
+    
+    @Nullable
 	public static <T> DownloadTask getTask(TaskField<T> field, T value) {
 		getDefaultDownloader();
 		return taskManager.getTask(field, value);
@@ -689,6 +719,8 @@ public class SimpleDownloader {
 	volatile int mReadTimeout;
 	volatile long mProgressInterval = 300L;
 	volatile RetryPolicy mRetryPolicy = RetryPolicy.builder().build();
+	static boolean mAutoRestore = false;
+	private static boolean sAutoRestoreDone = false;
 	
 	private SimpleDownloader(Context context) {
 		mContext = context.getApplicationContext();
