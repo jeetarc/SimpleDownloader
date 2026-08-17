@@ -842,6 +842,6 @@ You do not need to call `shutdown()` normally or when an Activity is destroyed.
 ## Support
 
 Found a problem or have a suggestion? Open an issue:
-https://github.com/jeetarc/SimpleDownloader/issues)
+https://github.com/jeetarc/SimpleDownloader/issues
 
 Copyright © 2026 Jeet / Jeetarc.
