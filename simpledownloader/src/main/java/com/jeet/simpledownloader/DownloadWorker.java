@@ -147,9 +147,12 @@ final class DownloadWorker {
 		speedHelper.reset(downloadedTotal);
 		etaHelper.reset();
 		
-		if (task.mRemoveRequested) {
+		if (task.mShutdownRequested) {
+			task.mShutdownRequested = false;
+			
+		} else if (task.mRemoveRequested) {
 			boolean deleted = false;
-			if (task.mDeleteOnRemoval) deleted = task.deleteOutput();
+			if (task.mDeleteOnRemoval) deleted = OutputResolver.deleteOutput(task);
 			synchronized (downloader.mLock) {
 				slotManager.removeQueuedTask(task);
 				networkManager.getWaitingForPreferredNetwork().remove(task);
@@ -166,7 +169,7 @@ final class DownloadWorker {
 			
 		} else if (task.mCancelRequested) {
 			task.setStatus(Status.CANCELLED);
-			task.deleteOutput();
+			OutputResolver.deleteOutput(task);
 			EventDispatcher.onCancelled(task);
 			shouldSync = false;
 			task.mCancelRequested = false;
@@ -321,6 +324,7 @@ final class DownloadWorker {
 		EventDispatcher.onProgress(task);
 		syncNow(downloaded, total);
 		verifyChecksum();
+        OutputResolver.finishOutput(task);
 		requestThumbnail(downloaded, true);
 		task.setStatus(Status.COMPLETED);
 		EventDispatcher.onComplete(task);
@@ -384,11 +388,7 @@ final class DownloadWorker {
 			return toHex(digest.digest());
 			
 		} finally {
-			if (in != null) {
-				try {
-					in.close();
-				} catch (Throwable ignored) {}
-			}
+			if (in != null) try { in.close(); } catch (Throwable ignored) {}
 		}
 	}
 	
@@ -410,10 +410,8 @@ final class DownloadWorker {
 		if (overwrite) {
 			OutputResolver.clearOutput(task);
 			
-		} else {
-			if (OutputResolver.isOutputValid(task) && !task.deleteOutput()) {
+		} else if (OutputResolver.isOutputValid(task) && !OutputResolver.deleteOutput(task)) {
 				throw new DownloadException(DownloadException.Type.FILE_ERROR, "Cannot delete corrupted output before retry.", -1, false);
-			}
 		}
 		
 		task.mChecksumFailed = false;
@@ -464,11 +462,7 @@ final class DownloadWorker {
 			}
 		}
 		
-		if (completed) {
-			loader.onCompleted(task.mThumbRequest, availableBytes);
-		} else {
-			loader.onBytesAvailable(task.mThumbRequest, availableBytes);
-		}
+		if (completed) loader.onCompleted(task.mThumbRequest, availableBytes); else loader.onBytesAvailable(task.mThumbRequest, availableBytes);
 	}
 	
 	private void recordAutoSpeedSample(long speed) {
