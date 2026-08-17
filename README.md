@@ -434,8 +434,8 @@ SimpleDownloader.setDeleteOnRemoval(id, true);
 ## Restore tasks
 Restore methods immediately restore saved tasks using the downloader's current configuration.
 
-> **Important:** Configure all downloader settings before calling any restore method.
-> Restore methods should always be the **last configuration call**, otherwise restored tasks may not receive the configuration called after restore.
+**Important:** Configure all downloader settings before calling any restore method.
+Restore methods should always be the **last configuration call**, otherwise restored tasks may not receive the configuration called after restore.
 
 ### Automatic Restore:
 
