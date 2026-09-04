@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import okhttp3.Call;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import com.jeet.simpledownloader.util.Logs;
 
 /**
 * Thumbnail loader (used internally).
@@ -126,7 +127,8 @@ public final class ThumbLoader {
 						postUrlReady(id, completedCall, bitmap, callback);
 						bitmap = null;
 						
-					} catch (Throwable ignored) {
+					} catch (Throwable e) {
+                        Logs.err("Failed to load thumbnail from URL.", e);
 						if (!completedCall.isCanceled()) postUrlUnavailable(id, completedCall, callback);
 						
 					} finally {
@@ -138,6 +140,7 @@ public final class ThumbLoader {
 			});
 			
 		} catch (Throwable error) {
+            Logs.err("Failed to thumbnail load from URL.", error);
 			networkCalls.remove(call);
 			if (!call.isCanceled()) postUrlUnavailable(id, null, callback);
 			call.cancel();
@@ -213,7 +216,8 @@ public final class ThumbLoader {
 			}, ATTEMPT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 			
 			request.attachFutures(attempt, decodeFuture, timeoutFuture);
-		} catch (RejectedExecutionException ignored) {
+		} catch (RejectedExecutionException e) {
+            Logs.err("Thumbnail request execution rejected.", e);
 			cancel(request);
 		}
 	}
@@ -345,4 +349,3 @@ public final class ThumbLoader {
 		}
 	}
 }
-
