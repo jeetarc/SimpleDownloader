@@ -7,14 +7,22 @@ package com.jeet.simpledownloader;
 */
 
 import android.net.Uri;
+import android.provider.MediaStore;
 import com.jeet.simpledownloader.util.TypeResolver;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import android.provider.MediaStore;
 
-final class DownloadRequest {
+/**
+* An immutable description of a download to start with {@link SimpleDownloader}.
+*
+* <p>Use {@link Builder} to create a request. Request-only settings describe the
+* download itself; shared settings override the corresponding downloader defaults
+* only when they are explicitly set on the request.</p>
+*/
+public final class DownloadRequest {
 	final long id;
+	final boolean hasId;
 	final Uri treeUri;
 	final Uri overwriteUri;
 	final String outputFolderPath;
@@ -31,16 +39,23 @@ final class DownloadRequest {
 	final String cookies;
 	final String checksumAlgorithm;
 	final String checksumValue;
-	final int bufferSize;
 	final Priority priority;
 	final boolean wifiOnly;
 	final boolean deleteOnRemoval;
 	final boolean lockedInQueue;
-	final DownloadNotification notification;
-	final DownloadListener listener;
+	final boolean hasSubFolder;
+	final boolean hasMimeType;
+	final boolean hasUserAgent;
+	final boolean hasHeaders;
+	final boolean hasCookies;
+	final boolean hasPriority;
+	final boolean hasWifiOnly;
+	final boolean hasDeleteOnRemoval;
+	final boolean hasLockedInQueue;
 	
 	private DownloadRequest(Builder builder, long id, ResolvedName resolved) {
 		this.id = id;
+		this.hasId = builder.hasId;
 		this.treeUri = builder.treeUri;
 		this.overwriteUri = builder.overwriteUri;
 		this.outputFolderPath = builder.outputFolderPath;
@@ -53,30 +68,39 @@ final class DownloadRequest {
 		this.mimeTypeMode = resolved.mimeTypeMode;
 		this.fileUrl = builder.fileUrl;
 		this.userAgent = builder.userAgent;
-		
-		if (builder.headers.isEmpty()) {
-			this.headers = Collections.emptyMap();
-		} else {
-			this.headers = Collections.unmodifiableMap(new HashMap<String, String>(builder.headers));
-		}
-		
+		this.headers = builder.headers.isEmpty() ? Collections.<String, String>emptyMap()
+		: Collections.unmodifiableMap(new HashMap<String, String>(builder.headers));
 		this.cookies = builder.cookies;
 		this.checksumAlgorithm = builder.checksumAlgorithm;
 		this.checksumValue = builder.checksumValue;
-		this.bufferSize = builder.bufferSize;
 		this.priority = builder.priority == null ? Priority.NORMAL : builder.priority;
 		this.wifiOnly = builder.wifiOnly;
 		this.deleteOnRemoval = builder.deleteOnRemoval;
 		this.lockedInQueue = builder.lockedInQueue;
-		this.notification = new DownloadNotification(builder.notification);
-		this.listener = builder.listener;
+		this.hasSubFolder = builder.hasSubFolder;
+		this.hasMimeType = builder.hasMimeType;
+		this.hasUserAgent = builder.hasUserAgent;
+		this.hasHeaders = builder.hasHeaders;
+		this.hasCookies = builder.hasCookies;
+		this.hasPriority = builder.hasPriority;
+		this.hasWifiOnly = builder.hasWifiOnly;
+		this.hasDeleteOnRemoval = builder.hasDeleteOnRemoval;
+		this.hasLockedInQueue = builder.hasLockedInQueue;
+	}
+	
+	DownloadRequest resolve(long resolvedId) {
+		if (hasId && id != resolvedId) throw new IllegalArgumentException("Cannot replace an explicit task ID with another ID.");
+		Builder copy = new Builder();
+		copy.copyFromRequest(this);
+		return copy.buildResolved(hasId ? id : resolvedId);
 	}
 	
 	DownloadTask createTask(SimpleDownloader downloader) {
 		return new DownloadTask(downloader, this);
 	}
 	
-	static final class Builder {
+	/** Builder for immutable {@link DownloadRequest} values. */
+	public static final class Builder {
 		Uri treeUri;
 		Uri overwriteUri;
 		String outputFolderPath;
@@ -85,126 +109,139 @@ final class DownloadRequest {
 		String subFolderPath;
 		String fileName;
 		String mimeType;
-		FileName fileNameMode = null;
-		MimeType mimeTypeMode = null;
+		FileName fileNameMode;
+		MimeType mimeTypeMode;
 		String fileUrl;
 		String userAgent = System.getProperty("http.agent");
 		final Map<String, String> headers = new HashMap<String, String>();
-		String cookies = null;
-		String checksumAlgorithm = null;
-		String checksumValue = null;
-		Long customId = null;
-		int bufferSize = 16384;
+		String cookies;
+		String checksumAlgorithm;
+		String checksumValue;
+		long id;
 		Priority priority = Priority.NORMAL;
-		boolean wifiOnly = false;
-		boolean deleteOnRemoval = false;
-		boolean lockedInQueue = false;
-		DownloadNotification notification = new DownloadNotification();
-		DownloadListener listener;
+		boolean wifiOnly;
+		boolean deleteOnRemoval;
+		boolean lockedInQueue;
+		boolean hasId;
+		boolean hasSubFolder;
+		boolean hasMimeType;
+		boolean hasUserAgent;
+		boolean hasHeaders;
+		boolean hasCookies;
+		boolean hasPriority;
+		boolean hasWifiOnly;
+		boolean hasDeleteOnRemoval;
+		boolean hasLockedInQueue;
 		
-		Builder putId(long id) {
-			customId = id;
+		public Builder() {}
+		
+		/** Sets the task ID. */
+		public Builder setId(long id) {
+			this.id = id;
+			hasId = true;
 			return this;
 		}
 		
-		Builder putFileUrl(String fileUrl) {
+		/** Sets the source URL. */
+		public Builder setFileUrl(String fileUrl) {
 			if (fileUrl == null || fileUrl.trim().isEmpty()) throw new IllegalArgumentException("fileUrl cannot be null or empty. use valid file URL to start download.");
 			this.fileUrl = fileUrl.trim();
 			return this;
 		}
 		
-		Builder putOutput(Uri folderUri, String fileName) {
+		public Builder setOutput(Uri folderUri, String fileName) {
 			if (folderUri == null) throw new IllegalArgumentException("setOutput(Uri, String): folderUri cannot be null");
 			if (fileName == null || fileName.trim().isEmpty()) throw new IllegalArgumentException("setOutput(Uri, String): fileName cannot be null or empty. Use a file name such as 'video.mp4'.");
 			clearOutput();
-			
-			if (isMediaStoreCollectionUri(folderUri)) this.mediaStoreUri = folderUri; else this.treeUri = folderUri;
+			if (isMediaStoreCollectionUri(folderUri)) mediaStoreUri = folderUri; else treeUri = folderUri;
 			this.fileName = fileName.trim();
 			return this;
 		}
 		
-		Builder putOutput(Uri folderUri, FileName fileName) {
+		public Builder setOutput(Uri folderUri, FileName fileName) {
 			if (folderUri == null) throw new IllegalArgumentException("setOutput(Uri, FileName): folderUri cannot be null.");
 			if (fileName == null) throw new IllegalArgumentException("setOutput(Uri, FileName): fileName cannot be null.");
 			clearOutput();
-			
-			if (isMediaStoreCollectionUri(folderUri)) this.mediaStoreUri = folderUri; else this.treeUri = folderUri;
-			this.fileNameMode = fileName;
+			if (isMediaStoreCollectionUri(folderUri)) mediaStoreUri = folderUri; else treeUri = folderUri;
+			fileNameMode = fileName;
 			return this;
 		}
 		
-		Builder putOutput(String folderPath, String fileName) {
+		public Builder setOutput(String folderPath, String fileName) {
 			if (folderPath == null || folderPath.trim().isEmpty()) throw new IllegalArgumentException("setOutput(String, String): folderPath cannot be null or empty.");
 			if (fileName == null) throw new IllegalArgumentException("setOutput(String, String): fileName cannot be null or empty.");
 			clearOutput();
-			
 			outputFolderPath = folderPath.trim();
 			this.fileName = fileName.trim();
 			return this;
 		}
 		
-		Builder putOutput(String folderPath, FileName fileName) {
+		public Builder setOutput(String folderPath, FileName fileName) {
 			if (folderPath == null || folderPath.trim().isEmpty()) throw new IllegalArgumentException("setOutput(String, FileName): folderPath cannot be null or empty.");
 			if (fileName == null) throw new IllegalArgumentException("setOutput(String, FileName): fileName cannot be null.");
 			clearOutput();
-			
 			outputFolderPath = folderPath.trim();
-			this.fileNameMode = fileName;
+			fileNameMode = fileName;
 			return this;
 		}
 		
-		Builder putOverwrite(String outputPath) {
+		public Builder overwrite(String outputPath) {
 			if (outputPath == null || outputPath.trim().isEmpty()) throw new IllegalArgumentException("overwrite(String): outputPath cannot be null or empty.");
-			
 			clearOutput();
 			overwritePath = outputPath.trim();
 			return this;
 		}
 		
-		Builder putOverwrite(Uri fileUri) {
+		public Builder overwrite(Uri fileUri) {
 			if (fileUri == null) throw new IllegalArgumentException("overwrite(Uri): Uri fileUri cannot be null. use a valid document URI for the file.");
-			
 			clearOutput();
 			overwriteUri = fileUri;
 			return this;
 		}
 		
-		Builder putMimeType(String mimeType) {
+		public Builder setSubFolder(String subFolder) {
+			subFolderPath = subFolder == null ? null : subFolder.trim();
+			hasSubFolder = true;
+			return this;
+		}
+		
+		public Builder setMimeType(String mimeType) {
 			this.mimeType = mimeType == null ? null : mimeType.trim();
+			hasMimeType = true;
 			return this;
 		}
 		
-		Builder putMimeType(MimeType mimeType)  {
-			this.mimeTypeMode = mimeType;
+		public Builder setMimeType(MimeType mimeType) {
+			mimeTypeMode = mimeType;
+			hasMimeType = true;
 			return this;
 		}
 		
-		Builder putSubFolder(String subFolder) {
-			this.subFolderPath = subFolder == null ? null : subFolder.trim();
-			return this;
-		}
-		
-		Builder putUserAgent(String userAgent) {
+		public Builder setUserAgent(String userAgent) {
 			this.userAgent = userAgent;
+			hasUserAgent = true;
 			return this;
 		}
 		
-		Builder putHeader(String key, String value) {
+		public Builder addHeader(String key, String value) {
 			headers.put(key, value);
+			hasHeaders = true;
 			return this;
 		}
 		
-		Builder putHeaders(Map<String, String> headers) {
+		public Builder setHeaders(Map<String, String> headers) {
 			if (headers != null) this.headers.putAll(headers);
+			hasHeaders = true;
 			return this;
 		}
 		
-		Builder putCookies(String cookies) {
+		public Builder setCookies(String cookies) {
 			this.cookies = cookies;
+			hasCookies = true;
 			return this;
 		}
 		
-		Builder putChecksum(String algorithm, String checksum) {
+		public Builder setChecksum(String algorithm, String checksum) {
 			if (algorithm == null || algorithm.trim().isEmpty()) throw new IllegalArgumentException("setChecksum(String, String): algorithm cannot be null or empty. Use SHA-256, SHA-1 or MD5.");
 			if (checksum == null || checksum.trim().isEmpty()) throw new IllegalArgumentException("setChecksum(String, String): checksum cannot be null or empty.");
 			checksumAlgorithm = algorithm.trim();
@@ -212,68 +249,95 @@ final class DownloadRequest {
 			return this;
 		}
 		
-		Builder putBufferSize(int bytes) {
-			bufferSize = bytes;
-			return this;
-		}
-		
-		Builder putPriority(Priority priority) {
+		public Builder setPriority(Priority priority) {
 			this.priority = priority;
+			hasPriority = true;
 			return this;
 		}
 		
-		Builder putWifiOnly(boolean wifiOnly) {
+		public Builder setWifiOnly(boolean wifiOnly) {
 			this.wifiOnly = wifiOnly;
+			hasWifiOnly = true;
 			return this;
 		}
 		
-		Builder putLockedInQueue(boolean enable) {
+		public Builder setLockedInQueue(boolean enable) {
 			lockedInQueue = enable;
+			hasLockedInQueue = true;
 			return this;
 		}
 		
-		Builder putDeleteOnRemoval(boolean enable) {
+		public Builder setDeleteOnRemoval(boolean enable) {
 			deleteOnRemoval = enable;
+			hasDeleteOnRemoval = true;
 			return this;
 		}
 		
-		Builder putNotification(DownloadNotification notification) {
-			this.notification = notification == null ? new DownloadNotification() : notification;
-			return this;
+		/** Builds an immutable request. The downloader assigns an ID when none is set. */
+		public DownloadRequest build() {
+			validateBase();
+			return new DownloadRequest(this, hasId ? id : 0L, new ResolvedName(fileName, mimeType, fileNameMode, mimeTypeMode));
 		}
 		
-		Builder putListener(DownloadListener listener) {
-			this.listener = listener;
-			return this;
-		}
-        
-        DownloadRequest build(long generatedId) {
-			if (treeUri == null && mediaStoreUri == null && overwriteUri == null && outputFolderPath == null && overwritePath == null) {
-				throw new IllegalStateException("Call setOutput(...) or overwrite(...) before starting a download.");
-			}
+		private void copyFromRequest(DownloadRequest request) {
+			treeUri = request.treeUri;
+			overwriteUri = request.overwriteUri;
+			outputFolderPath = request.outputFolderPath;
+			overwritePath = request.overwritePath;
+			mediaStoreUri = request.mediaStoreUri;
+			subFolderPath = request.subFolderPath;
+			fileName = request.fileName;
+			fileNameMode = request.fileNameMode;
+			mimeType = request.mimeType;
+			mimeTypeMode = request.mimeTypeMode;
+			fileUrl = request.fileUrl;
+			userAgent = request.userAgent;
 			
-			if (fileUrl == null) throw new IllegalStateException("Call setFileUrl(...) before starting a download.");
+			headers.clear();
+			headers.putAll(request.headers);
+			
+			cookies = request.cookies;
+			checksumAlgorithm = request.checksumAlgorithm;
+			checksumValue = request.checksumValue;
+			id = request.id;
+			priority = request.priority;
+			wifiOnly = request.wifiOnly;
+			deleteOnRemoval = request.deleteOnRemoval;
+			lockedInQueue = request.lockedInQueue;
+			
+			hasId = request.hasId;
+			hasSubFolder = request.hasSubFolder;
+			hasMimeType = request.hasMimeType;
+			hasUserAgent = request.hasUserAgent;
+			hasHeaders = request.hasHeaders;
+			hasCookies = request.hasCookies;
+			hasPriority = request.hasPriority;
+			hasWifiOnly = request.hasWifiOnly;
+			hasDeleteOnRemoval = request.hasDeleteOnRemoval;
+			hasLockedInQueue = request.hasLockedInQueue;
+		}
+		
+		private DownloadRequest buildResolved(long resolvedId) {
+			validateBase();
 			if ((mimeType == null || mimeType.trim().isEmpty()) && mimeTypeMode == null) mimeTypeMode = MimeType.AUTO;
 			ResolvedName resolved = resolveFileNameAndMimeType();
-			
 			if (overwriteUri == null && overwritePath == null) {
 				if (resolved.fileName == null || resolved.fileName.isEmpty()) throw new IllegalStateException("fileName could not be resolved.");
 				if (resolved.mimeType == null || resolved.mimeType.isEmpty()) throw new IllegalStateException("mimeType could not be resolved.");
 			}
-			
-			long id = customId != null ? customId : generatedId;
-			return new DownloadRequest(this, id, resolved);
+			return new DownloadRequest(this, resolvedId, resolved);
 		}
 		
-		boolean hasCustomId() {
-			return customId != null;
+		private void validateBase() {
+			if (treeUri == null && mediaStoreUri == null && overwriteUri == null && outputFolderPath == null && overwritePath == null) {
+				throw new IllegalStateException("Call setOutput(...) or overwrite(...) before starting a download.");
+			}
+			if (fileUrl == null) throw new IllegalStateException("Call setFileUrl(...) before starting a download.");
 		}
 		
-		private boolean isMediaStoreCollectionUri(Uri uri) {
-			if (uri == null) return false;
-			if (!"media".equals(uri.getAuthority())) return false;
+		private static boolean isMediaStoreCollectionUri(Uri uri) {
+			if (uri == null || !"media".equals(uri.getAuthority())) return false;
 			String value = uri.toString();
-			
 			return value.equals(MediaStore.Downloads.EXTERNAL_CONTENT_URI.toString())
 			|| value.equals(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.toString())
 			|| value.equals(MediaStore.Video.Media.EXTERNAL_CONTENT_URI.toString())
@@ -290,6 +354,7 @@ final class DownloadRequest {
 			mimeType = null;
 			fileNameMode = null;
 			mimeTypeMode = null;
+			hasMimeType = false;
 		}
 		
 		private ResolvedName resolveFileNameAndMimeType() {
@@ -297,8 +362,8 @@ final class DownloadRequest {
 			String finalMimeType = mimeType;
 			FileName finalFileNameMode = fileNameMode;
 			MimeType finalMimeTypeMode = mimeTypeMode;
-			if (finalFileNameMode == null && finalMimeTypeMode == null) return new ResolvedName(finalFileName, finalMimeType, null, null);
 			
+			if (finalFileNameMode == null && finalMimeTypeMode == null) return new ResolvedName(finalFileName, finalMimeType, null, null);
 			String extension = TypeResolver.getExtensionFromUrl(fileUrl);
 			String suffix = extension.isEmpty() ? "" : "." + extension;
 			
@@ -323,9 +388,43 @@ final class DownloadRequest {
 				finalMimeType = resolvedMime.isEmpty() ? "application/octet-stream" : resolvedMime;
 				if (finalFileNameMode == null) finalMimeTypeMode = null;
 			}
-			
 			return new ResolvedName(finalFileName, finalMimeType, finalFileNameMode, finalMimeTypeMode);
 		}
+	}
+	
+	/** Creates a new request using a SAF (document-tree) / MediaStore folder URI and a custom file name. */
+	public static DownloadRequest from(Uri folderUri, String fileName, String fileUrl) {
+		return builder().setFileUrl(fileUrl).setOutput(folderUri, fileName).build();
+	}
+	
+	/** Creates a new request using a SAF (document-tree) / MediaStore folder URI and a FileName (file name mode). */
+	public static DownloadRequest from(Uri folderUri, FileName fileName, String fileUrl) {
+		return builder().setFileUrl(fileUrl).setOutput(folderUri, fileName).build();
+	}
+	
+	/** Creates a new request using a filesystem folder path and a custom file name. */
+	public static DownloadRequest from(String folderPath, String fileName, String fileUrl) {
+		return builder().setFileUrl(fileUrl).setOutput(folderPath, fileName).build();
+	}
+	
+	/** Creates a new request using a filesystem folder path and a FileName (file name mode). */
+	public static DownloadRequest from(String folderPath, FileName fileName, String fileUrl) {
+		return builder().setFileUrl(fileUrl).setOutput(folderPath, fileName).build();
+	}
+    
+    /** Creates a new request using a file URI and writes directly to it. */
+    public static DownloadRequest fromOverwrite(Uri fileUri, String fileUrl) {
+        return builder().overwrite(fileUri).setFileUrl(fileUrl).build();
+    }
+    
+    /** Creates a new request using a file path and writes directly to it. */
+    public static DownloadRequest fromOverwrite(String filePath, String fileUrl) {
+        return builder().overwrite(filePath).setFileUrl(fileUrl).build();
+    }
+	
+	/** Creates a new request builder. */
+	public static Builder builder() {
+		return new Builder();
 	}
 	
 	private static String createTimeBasedName() {
