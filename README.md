@@ -1097,23 +1097,6 @@ DELETE_ON_REMOVAL
 LOCKED_IN_QUEUE
 ```
 
-## Utilities
-
-```java
-String size = Formator.formatBytes(bytes);
-String speed = Formator.formatSpeed(bytesPerSecond);
-String eta = Formator.formatEta(etaMs);
-String ratio = Formator.formatRatio(part, total);
-```
-
-`TypeResolver` is used internally, but it is also available for resolving file extensions and MIME types for you.
-
-```java
-String extension = TypeResolver.getExtension(fileName);
-String mime = TypeResolver.getMimeFromName(fileName);
-String mimeFromUrl = TypeResolver.getMimeFromUrl(fileUrl);
-```
-
 ## Cleanup
 
 When listeners and observers are owned by an Activity or Fragment, release them from the same downloader instance:
@@ -1141,6 +1124,23 @@ SimpleDownloader.shutdownDefault();
 ```
 
 You do not need to call `shutdown()` normally or when an Activity is destroyed. Do not use a shut down downloader again.
+
+## Utilities
+
+```java
+String size = Formator.formatBytes(bytes);
+String speed = Formator.formatSpeed(bytesPerSecond);
+String eta = Formator.formatEta(etaMs);
+String ratio = Formator.formatRatio(part, total);
+```
+
+`TypeResolver` is used internally, but it is also available for resolving file extensions and MIME types for you.
+
+```java
+String extension = TypeResolver.getExtension(fileName);
+String mime = TypeResolver.getMimeFromName(fileName);
+String mimeFromUrl = TypeResolver.getMimeFromUrl(fileUrl);
+```
 
 ## License
 
