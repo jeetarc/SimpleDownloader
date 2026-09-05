@@ -16,6 +16,7 @@ DownloadTask task = SimpleDownloader.getInstance(context)
 
 ## Features
 
+- Multi-download management
 - Multiple downloads with queue and priority support
 - automatic download concurrency
 - Pause, resume, cancel, retry, remove, requeue, and force download
@@ -77,7 +78,6 @@ Foreground mode automatically enables notifications. You can also use `enableNot
 If using normal file path, add:
 ``` XML
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 ```
 Request the permission at runtime.
 Storage permissions are not required when saving to an app-specific folder or using folderUri via MediaStore or Storage Access Framework.
@@ -193,25 +193,25 @@ SimpleDownloader downloader = new SimpleDownloader.Builder(context)
 
 Available `SimpleDownloader.Builder` settings:
 ```java
-setOwnerId(String ownerId)
-setHttpClient(OkHttpClient client)
-setMaxConcurrent(int max)
-enableHistory(boolean enable)
-enableForeground(boolean enable)
-enableNotifications(boolean enable)
-setNotification(DownloadNotification notification)
-setProgressInterval(long ms)
-setConnectTimeout(int ms)
-setReadTimeout(int ms)
-setBufferSize(int bytes)
-setRetryCount(int count)
-setRetryPolicy(RetryPolicy retryPolicy)
-enableResumeOnNetworkGain(boolean enable)
-setAutoRestore(boolean enable)
+.setOwnerId(String ownerId)
+.setHttpClient(OkHttpClient client)
+.setMaxConcurrent(int max)
+.enableHistory(boolean enable)
+.enableForeground(boolean enable)
+.enableNotifications(boolean enable)
+.setNotification(DownloadNotification notification)
+.setProgressInterval(long ms)
+.setConnectTimeout(int ms)
+.setReadTimeout(int ms)
+.setBufferSize(int bytes)
+.setRetryCount(int count)
+.setRetryPolicy(RetryPolicy retryPolicy)
+.enableResumeOnNetworkGain(boolean enable)
+.setAutoRestore(boolean enable)
 restoreTasks()
-restoreTasks(TaskField<?> field, Object value)
-enableSorting(boolean enable)
-setTaskComparator(Comparator<DownloadTask> comparator)
+.restoreTasks(TaskField<?> field, Object value)
+.enableSorting(boolean enable)
+.setTaskComparator(Comparator<DownloadTask> comparator)
 ```
 
 You can also use the default-owner downloader:
@@ -257,17 +257,11 @@ downloader.cancelAll();
 downloader.retryAll();
 downloader.requeueAll();
 downloader.removeAll();
-
-downloader.pause(Priority.LOW);
-downloader.resumeAll(Priority.HIGH);
-downloader.remove(Status.COMPLETED);
-downloader.remove(Priority.LOW);
 ```
 
 Update a task by ID:
 
 ```java
-downloader.setPriority(id, Priority.NEXT);
 downloader.setWifiOnly(id, true);
 downloader.setLockedInQueue(id, true);
 downloader.setDeleteOnRemoval(id, true);
@@ -354,26 +348,26 @@ DownloadRequest request = DownloadRequest.builder()
 Available request settings:
 
 ```java
-setId(long id)
-setFileUrl(String fileUrl)
-setOutput(Uri folderUri, String fileName)
-setOutput(Uri folderUri, FileName fileName)
-setOutput(String folderPath, String fileName)
-setOutput(String folderPath, FileName fileName)
-overwrite(String outputPath)
-overwrite(Uri fileUri)
-setSubFolder(String subFolder)
-setMimeType(String mimeType)
-setMimeType(MimeType mimeType)
-setUserAgent(String userAgent)
-addHeader(String key, String value)
-setHeaders(Map<String, String> headers)
-setCookies(String cookies)
-setChecksum(String algorithm, String checksum)
-setPriority(Priority priority)
-setWifiOnly(boolean wifiOnly)
-setLockedInQueue(boolean enable)
-setDeleteOnRemoval(boolean enable)
+.setId(long id)
+.setFileUrl(String fileUrl)
+.setOutput(Uri folderUri, String fileName)
+.setOutput(Uri folderUri, FileName fileName)
+.setOutput(String folderPath, String fileName)
+.setOutput(String folderPath, FileName fileName)
+.overwrite(String outputPath)
+.overwrite(Uri fileUri)
+.setSubFolder(String subFolder)
+.setMimeType(String mimeType)
+.setMimeType(MimeType mimeType)
+.setUserAgent(String userAgent)
+.addHeader(String key, String value)
+.setHeaders(Map<String, String> headers)
+.setCookies(String cookies)
+.setChecksum(String algorithm, String checksum)
+.setPriority(Priority priority)
+.setWifiOnly(boolean wifiOnly)
+.setLockedInQueue(boolean enable)
+.setDeleteOnRemoval(boolean enable)
 ```
 More:
 - [Authorize via headers, cookies](#Authorization)
@@ -662,7 +656,7 @@ SimpleDownloader.database().deleteForAll();
 SimpleDownloader.database().resetTasksTable();
 ```
 
-> Read the Javadoc for the methods before using. These can course unwanted tasks data lose.
+> Read the Javadoc for the methods before using. These can cause unwanted tasks data lose.
 
 ## Queue and concurrency
 
@@ -926,34 +920,34 @@ SimpleDownloader downloader = SimpleDownloader.builder(context)
 Available notification configuration includes:
 
 ```java
-setChannelId(String channelId)
-setChannelName(String channelName)
-setChannelDescription(String channelDescription)
-setChannelImportance(int channelImportance)
-setForegroundNotificationId(int foregroundNotificationId)
-setSmallIcon(int smallIcon)
-setCompleteIcon(int completeIcon)
-setErrorIcon(int errorIcon)
-setColorAccent(int colorAccent)
-setColorAccentResource(int colorAccentRes)
-clearColorAccent()
-setColorized(boolean colorized)
-setSoundEnabled(boolean soundEnabled)
-setSound(Uri soundUri)
-setVibrationEnabled(boolean vibrationEnabled)
-setVibrationPattern(long[] vibrationPattern)
+.setChannelId(String channelId)
+.setChannelName(String channelName)
+.setChannelDescription(String channelDescription)
+.setChannelImportance(int channelImportance)
+.setForegroundNotificationId(int foregroundNotificationId)
+.setSmallIcon(int smallIcon)
+.setCompleteIcon(int completeIcon)
+.setErrorIcon(int errorIcon)
+.setColorAccent(int colorAccent)
+.setColorAccentResource(int colorAccentRes)
+.clearColorAccent()
+.setColorized(boolean colorized)
+.setSoundEnabled(boolean soundEnabled)
+.setSound(Uri soundUri)
+.setVibrationEnabled(boolean vibrationEnabled)
+.setVibrationPattern(long[] vibrationPattern)
 setLockscreenVisibility(int visibility)
-setThumbnail(Bitmap bitmap)
-setThumbnailUrl(String url)
-setThumbnailUrl(String url, Map<String, String> headers)
+.setThumbnail(Bitmap bitmap)
+.setThumbnailUrl(String url)
+.setThumbnailUrl(String url, Map<String, String> headers)
 clearThumbnail()
-setShowThumbnail(boolean showThumbnail)
-setShowPauseAction(boolean showPauseAction)
-setShowCancelAction(boolean showCancelAction)
-setShowRetryAction(boolean showRetryAction)
-setShowCompleteNotification(boolean showCompleteNotification)
-setShowErrorNotification(boolean showErrorNotification)
-setNotificationUpdateInterval(long millis)
+.setShowThumbnail(boolean showThumbnail)
+.setShowPauseAction(boolean showPauseAction)
+.setShowCancelAction(boolean showCancelAction)
+.setShowRetryAction(boolean showRetryAction)
+.setShowCompleteNotification(boolean showCompleteNotification)
+.setShowErrorNotification(boolean showErrorNotification)
+.setNotificationUpdateInterval(long millis)
 ```
 
 SimpleDownloader has a built-in thumbnail system for notifications. It can generate thumbnails from supported video, image, audio, APK, and PDF files.
@@ -1064,7 +1058,7 @@ This means: get tasks whose STATUS is COMPLETED.
 - field = WHAT should I check?
 - value = WHAT should it equal?
 
-Available `TaskFields`
+Available TaskFields:
 
 ```java
 ID
@@ -1098,7 +1092,7 @@ String eta = Formator.formatEta(etaMs);
 String ratio = Formator.formatRatio(part, total);
 ```
 
-`TypeResolver` is used internally, but it is also available for resolving file extensions and MIME types for you 🙂.
+`TypeResolver` is used internally, but it is also available for resolving file extensions and MIME types for you.
 
 ```java
 String extension = TypeResolver.getExtension(fileName);
