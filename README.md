@@ -447,7 +447,7 @@ task.isOccupiedSlot();
 
 More:
 - [Task status](#Task-status)
-- [Understand TaskFields](#TaskFields)
+- [Understand TaskField](#TaskField)
 - [Task Listeners](#DownloadTask.Listener)
 - [Error handling](#Error-handling)
 
