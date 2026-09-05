@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
-import android.util.Log;
 import android.content.ContentValues;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
@@ -27,6 +26,7 @@ import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.database.Cursor;
 import android.os.Bundle;
+import com.jeet.simpledownloader.util.Logs;
 
 final class OutputResolver {
 	private static final Map<String, Object> sFolderLocks = new HashMap<>();
@@ -109,7 +109,7 @@ final class OutputResolver {
 				task.mOutputPath = file.getAbsolutePath();
 				task.mOutputUri = createFileProviderUri(task.mContext, file);
 				task.mOutputName = file.getName();
-				return new OutputState(null, file, task.mOutputUri, safeLength(file));
+				return new OutputState(null, file, task.mOutputUri, resolveOverwriteResumeLength(task, safeLength(file)));
 			}
 		}
 		
@@ -121,7 +121,7 @@ final class OutputResolver {
 				if (length >= 0) {
 					task.mOutputUri = task.mOverwriteUri;
 					task.mOutputName = getMediaStoreDisplayName(task, task.mOverwriteUri);
-					return new OutputState(null, null, task.mOverwriteUri, length);
+					return new OutputState(null, null, task.mOverwriteUri, resolveOverwriteResumeLength(task, length));
 				}
 				return new OutputState(null, null, null, 0);
 			}
@@ -131,7 +131,7 @@ final class OutputResolver {
 				task.mOutputDocFile = file;
 				task.mOutputUri = file.getUri();
 				task.mOutputName = file.getName();
-				return new OutputState(file, null, file.getUri(), safeLength(file));
+				return new OutputState(file, null, file.getUri(), resolveOverwriteResumeLength(task, safeLength(file)));
 			}
 		}
 		
@@ -144,8 +144,6 @@ final class OutputResolver {
 	private static OutputState resolveDocFileOutput(DownloadTask task) throws IOException {  
 		DocumentFile folder = DocumentFile.fromTreeUri(task.mContext, task.mTreeUri);  
 		folder = resolveDocFileSubFolder(folder, task.mSubFolderPath);  
-		
-		if (folder == null || !folder.exists() || !folder.isDirectory()) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Invalid output folder.");  
 		String validName = sanitizeFileName(task.mFileName);  
 		if (validName == null) validName = "download_" + System.currentTimeMillis();  
 		
@@ -158,17 +156,20 @@ final class OutputResolver {
 		}  
 		
 		if (file == null || file.getUri() == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Failed to create output file.");  
+		Uri fileUri = file.getUri();
+		String fileName = file.getName();
 		task.mOutputDocFile = file;  
-		task.mOutputUri = file.getUri();  
-		task.mOutputName = file.getName();  
+		task.mOutputUri = fileUri;  
+		task.mOutputName = fileName;  
 		markFreshOutput(task);  
 		updateOutputData(task);  
 		updateFreshOutputState(task);  
-		return new OutputState(file, null, task.mOutputUri, 0);  
+		return new OutputState(file, null, fileUri, 0);  
 	}  
 	
 	private static DocumentFile resolveDocFileSubFolder(DocumentFile baseFolder, String subFolder) throws IOException {  
 		if (baseFolder == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Output folder cannot be resolved.");  
+		if (!baseFolder.exists() || !baseFolder.isDirectory()) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Invalid output folder.");  
 		
 		String normalized = normalizeSubFolder(subFolder);  
 		if (subFolder != null && !subFolder.trim().isEmpty() && normalized == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Invalid subfolder path.");  
@@ -181,10 +182,13 @@ final class OutputResolver {
 			if (part == null || part.isEmpty()) continue;  
 			DocumentFile child = folder.findFile(part);  
 			
-			if (child == null) child = folder.createDirectory(part);
-            else if (!child.isDirectory()) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Subfolder path collides with a file: " + part);  
+			if (child == null) {
+				child = folder.createDirectory(part);
+				if (child == null || !child.exists() || !child.isDirectory()) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Cannot create subfolder: " + part);
+			} else if (!child.isDirectory()) {
+				throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Subfolder path collides with a file: " + part);
+			}
 			
-			if (child == null || !child.exists() || !child.isDirectory()) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Cannot create subfolder: " + part);  
 			folder = child;  
 		}  
 		
@@ -195,9 +199,6 @@ final class OutputResolver {
 	
 	private static OutputState resolvePathOutput(DownloadTask task) throws IOException {  
 		File folder = resolveFileSubFolder(new File(task.mOutputFolderPath), task.mSubFolderPath);  
-		
-		if (!folder.exists() && !folder.mkdirs()) throw new DownloadException(DownloadException.Type.STORAGE_PERMISSION_DENIED, "Cannot create output directory.");  
-		if (!folder.exists() || !folder.isDirectory()) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Invalid output directory.");  
 		if (!folder.canWrite()) throw new DownloadException(DownloadException.Type.STORAGE_PERMISSION_DENIED, "No write permission for output directory.");  
 		
 		String validName = sanitizeFileName(task.mFileName);  
@@ -217,6 +218,7 @@ final class OutputResolver {
 	private static File createUniqueFile(File folder, String fileName) throws IOException {  
 		String ext = com.jeet.simpledownloader.util.TypeResolver.getExtension(fileName);  
 		String baseName = getBaseName(fileName);  
+		String suffix = ext.isEmpty() ? "" : "." + ext;  
 		File file = new File(folder, fileName);  
 		
 		try {  
@@ -226,7 +228,6 @@ final class OutputResolver {
 		}  
 		
 		for (int i = 1; i <= 999; i++) {  
-			String suffix = ext.isEmpty() ? "" : "." + ext;  
 			File candidate = new File(folder, baseName + " (" + i + ")" + suffix);  
 			try {  
 				if (candidate.createNewFile()) return candidate;  
@@ -247,7 +248,7 @@ final class OutputResolver {
 		File folder = new File(baseFolder, normalized);  
 		
 		if (!folder.exists() && !folder.mkdirs()) throw new DownloadException(DownloadException.Type.STORAGE_PERMISSION_DENIED, "Cannot create subfolder.");  
-		if (!folder.exists() || !folder.isDirectory()) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Invalid subfolder path.");  
+		if (!folder.isDirectory()) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Invalid subfolder path.");  
 		return folder;  
 	}  
 	
@@ -279,6 +280,8 @@ final class OutputResolver {
 	private static OutputState resolveMediaStoreOutput(DownloadTask task, boolean allowCreate) throws IOException {  
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "MediaStore output requires Android 10 (API 29) or newer.");  
 		
+		ContentResolver resolver = task.mContext.getContentResolver();
+		
 		if (task.mOutputUri != null) {  
 			long probeLength = getMediaStoreLength(task, task.mOutputUri);  
 			if (probeLength >= 0) {  
@@ -287,7 +290,7 @@ final class OutputResolver {
 			}  
 			
 			try {  
-				task.mContext.getContentResolver().delete(task.mOutputUri, null, null);  
+				resolver.delete(task.mOutputUri, null, null);  
 			} catch (Throwable ignored) {}  
 			
 			task.mOutputUri = null;  
@@ -310,7 +313,7 @@ final class OutputResolver {
 			values.put(MediaStore.MediaColumns.MIME_TYPE, task.mMimeType);  
 			values.put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath);  
 			values.put(MediaStore.MediaColumns.IS_PENDING, 1);  
-			createdUri = task.mContext.getContentResolver().insert(task.mMediaStoreUri, values);  
+			createdUri = resolver.insert(task.mMediaStoreUri, values);  
 		}  
 		
 		if (createdUri == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Failed to create MediaStore output.");  
@@ -391,7 +394,7 @@ final class OutputResolver {
 		
 		task.mOutputUri = uri;
 		task.mOutputName = getMediaStoreDisplayName(task, uri);
-		return new OutputState(null, null, uri, length);
+		return new OutputState(null, null, uri, resolveOverwriteResumeLength(task, length));
 	}
 	
 	private static String getMediaStoreDisplayName(DownloadTask task, Uri uri) {
@@ -405,7 +408,8 @@ final class OutputResolver {
 				if (index >= 0 && !cursor.isNull(index)) return cursor.getString(index);
 			}
 			
-		} catch (Throwable ignored) {
+		} catch (Throwable thr) {
+            Logs.err("Failed to get MediaStore display name.", thr);
 		} finally {
 			if (cursor != null) cursor.close();
 		}
@@ -464,8 +468,8 @@ final class OutputResolver {
 		try {  
 			return FileProvider.getUriForFile(context, context.getPackageName() + ".simpledownloader.fileprovider", file);  
 		} catch (Exception error) {  
-			Log.w("SimpleDownloader: ", "FileProvider cannot be resolved. The outputUri will be null for file path outputs. " + error.toString());  
-			return null;  
+			Logs.warn("FileProvider cannot be resolved. The output URI will be null for file path outputs.", error);
+			return null;
 		}  
 	}
 	
@@ -518,18 +522,14 @@ final class OutputResolver {
 		try {  
 			if (task.mOutputFile != null) clear = new FileOutputStream(task.mOutputFile, false);  
 			else if (task.mOutputUri != null) clear = task.mContext.getContentResolver().openOutputStream(task.mOutputUri, "w");  
-            if (clear == null) return;  
-			clear.flush();
-            
+			if (clear == null) return;  
+			
 		} finally {  
 			closeQuietly(clear);
 		}  
 		
 		markFreshOutput(task);
-		if (task.mDownloader.taskDatabase != null) {  
-			task.mDownloader.taskDatabase.updateResumeData(task.mId, 0, -1, 0, null, null);  
-			task.mDownloader.taskDatabase.updateStatus(task.mId, task.status, task.mBytesDownloaded, task.mProgress);  
-		}  
+		if (task.mDownloader.taskDatabase != null) task.mDownloader.taskDatabase.updateResumeData(task.mId, 0, -1, 0, null, null);  
 	}  
 	
 	static void deleteIfEmpty(DownloadTask task) {    
@@ -553,26 +553,27 @@ final class OutputResolver {
 	private static void updateFreshOutputState(DownloadTask task) {  
 		if (task == null || task.mDownloader.taskDatabase == null) return;  
 		task.mDownloader.taskDatabase.updateResumeData(task.mId, 0, -1, 0, null, null);  
-		task.mDownloader.taskDatabase.updateStatus(task.mId, task.status, task.mBytesDownloaded, task.mProgress);  
 	}  
 	
 	private static long safeLength(DocumentFile file) {  
 		try {  
-			if (file == null || !file.exists()) return 0;  
+			if (file == null) return 0;  
 			long length = file.length();  
 			return Math.max(0, length);  
-		} catch (Throwable ignored) {  
-			return 0;  
-		}  
+		} catch (Throwable thr) {
+            Logs.err("Unable get file length for DocumentFile: " + file.getUri().toString(), thr);
+			return 0;
+		}
 	}  
 	
 	private static long safeLength(File file) {  
 		try {  
-			if (file == null || !file.exists()) return 0;  
+			if (file == null) return 0;  
 			return Math.max(0, file.length());  
-		} catch (Throwable ignored) {  
+		} catch (Throwable thr) {
+            Logs.err("Unable get file length for File: " + file.getAbsolutePath(), thr);
 			return 0;  
-		}  
+		}
 	}  
 	
 	private static long getMediaStoreLength(DownloadTask task, Uri uri) {
@@ -583,9 +584,14 @@ final class OutputResolver {
 			long size = pfd.getStatSize();
 			return size >= 0 ? size : -1;
 			
-		} catch (Throwable ignored) {
+		} catch (Throwable thr) {
+            Logs.err("Unable get file length for MediaStore item: " + uri.toString(), thr);
 			return -1;
 		}
+	}
+	
+	private static long resolveOverwriteResumeLength(DownloadTask task, long actualOnDiskLength) {
+		return task.mBytesDownloaded > 0 ? actualOnDiskLength : 0;
 	}
 	
 	private static void closeQuietly(OutputStream out) {  
@@ -600,13 +606,15 @@ final class OutputResolver {
 		boolean isValid = false;
 		
 		try {
+			boolean isMediaStore = isMediaStoreItemUri(task.mOutputUri);
+			
 			if (task.mOutputFile != null) {
 				isValid = task.mOutputFile.exists();
 				
 			} else if (task.mOutputDocFile != null) {
 				isValid = task.mOutputDocFile.exists();
 				
-			} else if (isMediaStoreItemUri(task.mOutputUri)) {
+			} else if (isMediaStore) {
 				try (ParcelFileDescriptor pfd = task.mContext.getContentResolver().openFileDescriptor(task.mOutputUri, "r")) {
 					isValid = pfd != null;
 				} catch (Throwable ignored) {
@@ -616,7 +624,7 @@ final class OutputResolver {
 			} 
 			
 			if (!isValid) {
-				if (isMediaStoreItemUri(task.mOutputUri)) {
+				if (isMediaStore) {
 					try {
 						task.mContext.getContentResolver().delete(task.mOutputUri, null, null);
 					} catch (Throwable ignored) {}
@@ -625,11 +633,12 @@ final class OutputResolver {
 				clearOutputReferences(task);
 				updateOutputData(task);
 			}
-            
+			
 			return isValid;
-		} catch (Throwable ignored) {
+		} catch (Throwable thr) {
 			clearOutputReferences(task);
 			updateOutputData(task);
+            Logs.err("Unable to verify output file.", thr);
 			return false;
 		}
 	}
@@ -697,4 +706,5 @@ final class OutputResolver {
 			this.length = Math.max(0, length);  
 		}  
 	}
+	
 }
