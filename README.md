@@ -293,6 +293,18 @@ downloader.hasTask(id);
 downloader.hasTask(fileUrl);
 ```
 
+Common request fields can be set directly to the SimpleDownloader instance:
+```java
+.setSubFolder(String value)
+.setHeaders(Map<String,String> headers)
+.addHeader(String key, String value)
+.setUserAgent(String value)
+.setCookies(String value)
+.setWifiOnly(boolean enable)
+.setDeleteOnRemoval(boolean enable)
+```
+You can overwrite SimpleDownloader request fields by setting them again for each request using `DownloadRequest.builder()`
+
 Downloader configuration and state can be read back with:
 
 ```java
