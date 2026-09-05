@@ -24,8 +24,9 @@ public interface TaskListObserver {
 	 *
 	 * @param tasks an read only snapshot of the current task list oder,
      * The {@code DownloadTask} objects inside are still live and can update.
+     * @param size is the count of the DownloadTask inside the tasks list.
 	 */
-	default void onTasksChanged(List<DownloadTask> tasks) {}
+	default void onTasksChanged(int size, List<DownloadTask> tasks) {}
 
 	/**
 	 * Called when a task's data changes, (eg. status, progress, bytes, speed, ETA, etc).
