@@ -319,6 +319,7 @@ More:
 - [Callbacks and Listeners](#Callbacks-and-Listeners)
 - [Restore tasks](#Restore-tasks-&-Database)
 - [Foreground and Notifications](#Foreground-and-Notifications)
+- [Cleanup](#Cleanup)
 
 ## DownloadRequest
 
@@ -374,7 +375,7 @@ More:
 - [Authorize via headers, cookies](#Authorization)
 - [Set Subfolder](#Subfolder)
 - [FileName and MimeType modes](#FileName-and-MimeType-modes)
-- [Explicit MIME Type](#MIME-Type)
+- [Checksums](#Checksums)
 
 
 ## DownloadTask
@@ -937,11 +938,11 @@ Available notification configuration includes:
 .setSound(Uri soundUri)
 .setVibrationEnabled(boolean vibrationEnabled)
 .setVibrationPattern(long[] vibrationPattern)
-setLockscreenVisibility(int visibility)
+.setLockscreenVisibility(int visibility)
 .setThumbnail(Bitmap bitmap)
 .setThumbnailUrl(String url)
 .setThumbnailUrl(String url, Map<String, String> headers)
-clearThumbnail()
+.clearThumbnail()
 .setShowThumbnail(boolean showThumbnail)
 .setShowPauseAction(boolean showPauseAction)
 .setShowCancelAction(boolean showCancelAction)
