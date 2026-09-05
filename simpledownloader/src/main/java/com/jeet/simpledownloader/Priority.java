@@ -13,7 +13,7 @@ package com.jeet.simpledownloader;
  * (eg. NEXT > HIGH > NORMAL > LOW) </p>
  */
 public enum Priority {
-	NEXT(4), HIGH(3), NORMAL(2), LOW(1);
+	HIGH(3), NORMAL(2), LOW(1);
 	final int weight;
 	
 	Priority(int weight) {
@@ -32,10 +32,7 @@ public enum Priority {
 	}
 	
 	static Priority fromDatabaseValue(String value) {
-		if (value == null || value.length() <= 0) return NORMAL;
-		try {
-			return fromCode(Integer.parseInt(value));
-		} catch (Exception ignored) {}
+		if (value == null || value.isEmpty()) return NORMAL;
 		try {
 			return valueOf(value);
 		} catch (Exception ignored) {}

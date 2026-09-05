@@ -10,107 +10,25 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.WeakHashMap;
 
 final class TaskManager {
 	private final SimpleDownloader downloader;
 	private final ConcurrentHashMap<Long, DownloadTask> registry = new ConcurrentHashMap<Long, DownloadTask>();
 	private final List<DownloadTask> taskList = new ArrayList<DownloadTask>();
-	private final Map<Object, List<Long>> contextTaskMap = new WeakHashMap<Object, List<Long>>();
-	private final AtomicLong idGenerator = new AtomicLong(System.currentTimeMillis());
 	private final List<TaskListObserver> observerList = new ArrayList<TaskListObserver>();
-	private final Map<Object, List<TaskListObserver>> contextObserverMap = new WeakHashMap<Object, List<TaskListObserver>>();
 	private boolean enableSorting = true;
 	private boolean tasksChangedPending;
-	private long mTotalActiveSpeedForAutoConcurrency;
-	private int mActiveSpeedTaskCountForAutoConcurrency;
-	
-	void setTaskComparator(Comparator<DownloadTask> comparator) {
-		synchronized (downloader.mLock) {
-			taskComparator = comparator != null ? comparator : DEFAULT_TASK_ORDER;
-			sortTasksLocked();
-		}
-	}
-	
-	private static final Comparator<DownloadTask> DEFAULT_TASK_ORDER = new Comparator<DownloadTask>() {
-		
-		@Override
-		public int compare(DownloadTask a, DownloadTask b) {
-			int groupA = getTaskSortGroup(a);
-			int groupB = getTaskSortGroup(b);
-			if (groupA != groupB) return Integer.compare(groupA, groupB);
-			
-			// Queued: priority first, then oldest first.
-			if (groupA == 2) {
-				int priorityCompare = Integer.compare(b.getPriority().getWeight(), a.getPriority().getWeight());
-				if (priorityCompare != 0) return priorityCompare;
-				return Long.compare(a.getCreatedAt(), b.getCreatedAt());
-			}
-			
-			// Finished: newest first.
-			if (groupA == 3) return Long.compare(b.getCreatedAt(), a.getCreatedAt());
-			
-			int priorityCompare = Integer.compare(b.getPriority().getWeight(), a.getPriority().getWeight());
-			if (priorityCompare != 0) return priorityCompare;
-			return Long.compare(b.getCreatedAt(), a.getCreatedAt());
-		}
-	};
-	
+	private volatile long mTotalActiveSpeedForAutoConcurrency;
+	private volatile int mActiveSpeedTaskCountForAutoConcurrency;
 	private Comparator<DownloadTask> taskComparator = DEFAULT_TASK_ORDER;
 	
 	TaskManager(SimpleDownloader downloader) {
 		this.downloader = downloader;
 	}
 	
-	void addObserver(Object owner, TaskListObserver observer) {
-		if (observer == null) return;
-		
-		synchronized (downloader.mLock) {
-			if (!observerList.contains(observer)) observerList.add(observer);
-			
-			if (owner != null) {
-				List<TaskListObserver> ownedObservers = contextObserverMap.get(owner);
-				
-				if (ownedObservers == null) {
-					ownedObservers = new ArrayList<TaskListObserver>();
-					contextObserverMap.put(owner, ownedObservers);
-				}
-				
-				if (!ownedObservers.contains(observer)) ownedObservers.add(observer);
-			}
-		}
-		
-		requestTasksChanged();
-	}
-	
-	void removeObserver(TaskListObserver observer) {
-		if (observer == null) return;
-		
-		synchronized (downloader.mLock) {
-			observerList.remove(observer);
-			for (List<TaskListObserver> ownedObservers : contextObserverMap.values()) {
-				ownedObservers.remove(observer);
-			}
-		}
-	}
-	
-	List<TaskListObserver> snapshotObservers() {
-		synchronized (downloader.mLock) {
-			return new ArrayList<TaskListObserver>(observerList);
-		}
-	}
-	
-	boolean hasObserver(TaskListObserver observer) {
-		synchronized (downloader.mLock) {
-			return observerList.contains(observer);
-		}
-	}
-	
 	long nextId() {
-		return idGenerator.incrementAndGet();
+		return downloader.nextTaskId();
 	}
 	
 	DownloadTask getTask(long id) {
@@ -128,12 +46,12 @@ final class TaskManager {
 	}
 	
 	<T> DownloadTask getTask(TaskField<T> field, T value) {
-		validateFieldValue(field, value);
+		field.validateValue(value);
 		
 		synchronized (downloader.mLock) {
 			DownloadTask latest = null;
 			for (DownloadTask task : taskList) {
-				if (!matches(task, field, value)) continue;
+				if (!field.matches(task, value)) continue;
 				if (latest == null || task.mCreatedAt > latest.mCreatedAt) latest = task;
 			}
 			
@@ -142,12 +60,12 @@ final class TaskManager {
 	}
 	
 	<T> ArrayList<DownloadTask> getTasks(TaskField<T> field, T value) {
-		validateFieldValue(field, value);
+		field.validateValue(value);
 		ArrayList<DownloadTask> result = new ArrayList<DownloadTask>();
 		
 		synchronized (downloader.mLock) {
 			for (DownloadTask task : taskList) {
-				if (matches(task, field, value)) result.add(task);
+				if (field.matches(task, value)) result.add(task);
 			}
 		}
 		
@@ -237,9 +155,103 @@ final class TaskManager {
 	
 	void removeTaskLocked(DownloadTask task) {
 		if (task == null || !taskList.remove(task)) return;
-		
 		sortTasksLocked();
 		requestTasksChangedLocked();
+	}
+	
+	List<DownloadTask> restoreTasks(SimpleDownloader requester, List<TaskState> states, boolean autoRestore) {
+		List<DownloadTask> restored = new ArrayList<DownloadTask>();
+		if (requester == null || states == null || states.isEmpty()) return restored;
+		
+		synchronized (downloader.mLock) {
+			for (TaskState state : states) {
+				DownloadTask task = restoreTaskFromStateLocked(requester, state, autoRestore);
+				if (task != null) restored.add(task);
+			}
+			
+			addTasksLocked(restored);
+			downloader.slotManager.sortHeldQueueLocked();
+			if (autoRestore) downloader.slotManager.submitReadyHeldTasksLocked();
+		}
+		
+		return restored;
+	}
+	
+	private DownloadTask restoreTaskFromStateLocked(SimpleDownloader requester, TaskState state, boolean autoRestore) {
+		if (state == null) return null;
+		if (requester != null && !requester.getOwnerId().equals(state.ownerId)) return null;
+		
+		synchronized (SimpleDownloader.GLOBAL_LOCK) {
+			DownloadTask existing = getTask(state.id);
+			if (existing != null) return existing;
+			
+			for (SimpleDownloader downloader : SimpleDownloader.snapshotInstancesLockedForTaskRestore()) {
+				if (downloader == null || downloader == requester || downloader.mShutdown) continue;
+				DownloadTask other = downloader.taskManager.getTask(state.id);
+				if (other != null) return null;
+			}
+			
+			DownloadTask task = DownloadTask.restore(requester, state);
+			if (task == null) return null;
+			
+			putTaskLocked(task);
+			restoreTaskPositionLocked(task, state.status, autoRestore);
+			notifyRestoredTask(task);
+			return task;
+		}
+	}
+	
+	
+	private void restoreTaskPositionLocked(DownloadTask task, Status restored, boolean autoRestore) {
+		if (task == null) return;
+		if (restored == null) restored = Status.PAUSED;
+		
+		if (restored == Status.PAUSED) {
+			if (!downloader.slotManager.pauseRestoredTaskLocked(task)) downloader.slotManager.restoreQueuedTaskLocked(task);
+			return;
+		}
+		
+		boolean unfinished = restored == Status.STARTING || restored == Status.CONNECTING || restored == Status.DOWNLOADING
+		|| restored == Status.RETRYING || restored == Status.QUEUED || restored == Status.WAITING_FOR_NETWORK;
+		
+		if (unfinished) {
+			if (autoRestore) downloader.slotManager.restoreQueuedTaskLocked(task);
+			else if (!downloader.slotManager.pauseRestoredTaskLocked(task)) downloader.slotManager.restoreQueuedTaskLocked(task);
+			return;
+		}
+		
+		// Completed, failed and cancelled remain same
+		task.setStatusRestored(restored);
+	}
+	
+	private void notifyRestoredTask(DownloadTask task) {
+		if (task == null) return;
+		if (task.status == Status.PAUSED) EventDispatcher.onPaused(task);
+		else if (task.status == Status.QUEUED) EventDispatcher.onQueued(task);
+		else if (task.status == Status.WAITING_FOR_NETWORK) EventDispatcher.onWaitingForNetwork(task);
+	}
+	
+	
+	void releaseAllCallbacks() {
+		synchronized (downloader.mLock) {
+			for (DownloadTask task : registry.values()) {
+				if (task != null) task.removeAllListeners();
+			}
+			observerList.clear();
+		}
+	}
+	
+	void shutdownLocked() {
+		for (DownloadTask task : registry.values()) {
+			if (task != null) task.removeAllListeners();
+		}
+		
+		registry.clear();
+		taskList.clear();
+		observerList.clear();
+		tasksChangedPending = false;
+		mTotalActiveSpeedForAutoConcurrency = 0;
+		mActiveSpeedTaskCountForAutoConcurrency = 0;
 	}
 	
 	void requestTasksChanged() {
@@ -274,61 +286,6 @@ final class TaskManager {
 		}
 	}
 	
-	private static int getTaskSortGroup(DownloadTask task) {
-		if (task == null) return 99;
-		if (task.isOccupiedSlot() || task.isActive()) return 1;
-		if (task.isQueued() || task.isPaused()) return 2;
-		if (task.isFinished()) return 3;
-		return 4;
-	}
-	
-	void trackListenerOwnerLocked(Object owner, long id) {
-		if (owner == null) return;
-		List<Long> ids = contextTaskMap.get(owner);
-		
-		if (ids == null) {
-			ids = new ArrayList<Long>();
-			contextTaskMap.put(owner, ids);
-		}
-		
-		if (!ids.contains(id)) ids.add(id);
-	}
-	
-	void releaseCallbacks(Object owner) {
-		if (owner == null) return;
-		
-		synchronized (downloader.mLock) {
-			List<Long> ids = contextTaskMap.remove(owner);
-			
-			if (ids != null) {
-				for (Long id : ids) {
-					if (id == null) continue;
-					DownloadTask task = registry.get(id);
-					if (task != null) task.releaseCallbacks();
-				}
-			}
-			
-			List<TaskListObserver> ownedObservers = contextObserverMap.remove(owner);
-			if (ownedObservers != null) observerList.removeAll(ownedObservers);
-		}
-	}
-	
-	void shutdownLocked() {
-		for (DownloadTask task : registry.values()) {
-			if (task != null) task.releaseCallbacks();
-		}
-		
-		registry.clear();
-		taskList.clear();
-		contextTaskMap.clear();
-		observerList.clear();
-		contextObserverMap.clear();
-		tasksChangedPending = false;
-		
-		mTotalActiveSpeedForAutoConcurrency = 0;
-		mActiveSpeedTaskCountForAutoConcurrency = 0;
-	}
-	
 	void sortTasksLocked() {
 		if (!enableSorting || taskList.size() <= 1) return;
 		boolean orderChanged = false;
@@ -347,233 +304,71 @@ final class TaskManager {
 		requestTasksChangedLocked();
 	}
 	
-	boolean hasBusyOverwriteTarget(String overwriteKey, long ignoreTaskId) {
-		if (overwriteKey == null || overwriteKey.trim().isEmpty()) return false;
-		
-		for (DownloadTask task : getTasks()) {
-			if (task == null) continue;
-			if (task.mId == ignoreTaskId) continue;
-			if (task.isFinished()) continue;
-			String taskOverwriteKey = task.getOverwriteKey();
-			if (overwriteKey.equals(taskOverwriteKey)) return true;
-		}
-		
-		return false;
+	private static int getTaskSortGroup(DownloadTask task) {
+		if (task == null) return 99;
+		if (task.isOccupiedSlot() || task.isActive()) return 1;
+		if (task.isQueued() || task.isPaused()) return 2;
+		if (task.isFinished()) return 3;
+		return 4;
 	}
 	
-	List<DownloadTask> restoreTasks(SimpleDownloader requester, List<TaskState> states, boolean autoRestore) {
-		List<DownloadTask> restored = new ArrayList<DownloadTask>();
-		if (requester == null || states == null || states.isEmpty()) return restored;
-		
+	void addObserver(TaskListObserver observer) {
+		if (observer == null) return;
 		synchronized (downloader.mLock) {
-			for (TaskState state : states) {
-				DownloadTask task = restoreTaskFromStateLocked(requester, state, autoRestore);
-				if (task != null) restored.add(task);
-			}
-			
-			addTasksLocked(restored);
-			downloader.slotManager.sortHeldQueueLocked();
-			if (autoRestore) downloader.slotManager.submitReadyHeldTasksLocked();
+			if (!observerList.contains(observer)) observerList.add(observer);
 		}
 		
-		return restored;
+		requestTasksChanged();
 	}
 	
-	List<DownloadTask> restoreTasks(SimpleDownloader requester, List<TaskState> states) {
-		return restoreTasks(requester, states, false);
-	}
-	
-	DownloadTask restoreTask(SimpleDownloader requester, TaskState state) {
-		if (requester == null || state == null) return null;
-		
+	void removeObserver(TaskListObserver observer) {
+		if (observer == null) return;
 		synchronized (downloader.mLock) {
-			DownloadTask task = restoreTaskFromStateLocked(requester, state, false);
+			observerList.remove(observer);
+		}
+	}
+	
+	List<TaskListObserver> snapshotObservers() {
+		synchronized (downloader.mLock) {
+			return new ArrayList<TaskListObserver>(observerList);
+		}
+	}
+	
+	boolean hasObserver(TaskListObserver observer) {
+		synchronized (downloader.mLock) {
+			return observerList.contains(observer);
+		}
+	}
+	
+	void setTaskComparator(Comparator<DownloadTask> comparator) {
+		synchronized (downloader.mLock) {
+			taskComparator = comparator != null ? comparator : DEFAULT_TASK_ORDER;
+			sortTasksLocked();
+		}
+	}
+	
+	private static final Comparator<DownloadTask> DEFAULT_TASK_ORDER = new Comparator<DownloadTask>() {
+		@Override
+		public int compare(DownloadTask a, DownloadTask b) {
+			int groupA = getTaskSortGroup(a);
+			int groupB = getTaskSortGroup(b);
+			if (groupA != groupB) return Integer.compare(groupA, groupB);
 			
-			if (task != null) {
-				addTaskLocked(task);
-				downloader.slotManager.sortHeldQueueLocked();
+			// Queued: priority first, then oldest first.
+			if (groupA == 2) {
+				int priorityCompare = Integer.compare(b.getPriority().getWeight(), a.getPriority().getWeight());
+				if (priorityCompare != 0) return priorityCompare;
+				return Long.compare(a.getCreatedAt(), b.getCreatedAt());
 			}
 			
-			return task;
+			// Finished: newest first.
+			if (groupA == 3) return Long.compare(b.getCreatedAt(), a.getCreatedAt());
+			
+            int priorityCompare = Integer.compare(b.getPriority().getWeight(), a.getPriority().getWeight());
+			if (priorityCompare != 0) return priorityCompare;
+			return Long.compare(b.getCreatedAt(), a.getCreatedAt());
 		}
-	}
-	
-	private DownloadTask restoreTaskFromStateLocked(SimpleDownloader requester, TaskState state, boolean autoRestore) {
-		if (state == null) return null;
-		DownloadTask existing = getTask(state.id);
-		
-		if (existing != null) {
-			attachRestoreListenerLocked(requester, existing);
-			return existing;
-		}
-		
-		DownloadTask task = DownloadTask.restore(requester, state);
-		if (task == null) return null;
-		
-		attachRestoreListenerLocked(requester, task);
-		putTaskLocked(task);
-		restoreTaskPositionLocked(task, state.status, autoRestore);
-		notifyRestoredTask(task);
-		return task;
-	}
-	
-	private void attachRestoreListenerLocked(SimpleDownloader requester, DownloadTask task) {
-		if (requester == null || task == null || requester.mRequestBuilder.listener == null) return;
-		task.addListener(requester.mRequestBuilder.listener);
-		trackListenerOwnerLocked(requester.mListenerOwnerKey, task.mId);
-	}
-	
-	private void restoreTaskPositionLocked(DownloadTask task, Status restored, boolean autoRestore) {
-		if (task == null) return;
-		if (restored == null) restored = Status.PAUSED;
-		
-		if (restored == Status.PAUSED) {
-			if (!downloader.slotManager.pauseRestoredTaskLocked(task)) {
-				downloader.slotManager.restoreQueuedTaskLocked(task);
-			}
-			return;
-		}
-		
-		boolean unfinished = restored == Status.STARTING || restored == Status.CONNECTING || restored == Status.DOWNLOADING
-		|| restored == Status.RETRYING || restored == Status.QUEUED || restored == Status.WAITING_FOR_NETWORK;
-		
-		if (unfinished) {
-			if (autoRestore) {
-				downloader.slotManager.restoreQueuedTaskLocked(task);
-				
-			} else {
-				if (!downloader.slotManager.pauseRestoredTaskLocked(task)) downloader.slotManager.restoreQueuedTaskLocked(task);
-			}
-			return;
-		}
-		
-		// Completed, failed and cancelled remain same
-		task.setStatusRestored(restored);
-	}
-	
-	private void notifyRestoredTask(DownloadTask task) {
-		if (task == null) return;
-		
-		if (task.status == Status.PAUSED) {
-			EventDispatcher.onPaused(task);
-			
-		} else if (task.status == Status.QUEUED) {
-			EventDispatcher.onQueued(task);
-			
-		} else if (task.status == Status.WAITING_FOR_NETWORK) {
-			EventDispatcher.onWaitingForNetwork(task);
-		}
-	}
-	
-	private static <T> void validateFieldValue(TaskField<T> field, T value) {
-		if (field == null) throw new IllegalArgumentException("TaskField cannot be null.");
-		
-		if (value != null && !field.type.isInstance(value)) {
-			throw new IllegalArgumentException("Expected "
-			+ field.type.getSimpleName()
-			+ " for field "
-			+ field.column
-			+ ", but received "
-			+ value.getClass().getSimpleName()
-			+ ".");
-		}
-	}
-	
-	private static <T> boolean matches(DownloadTask task, TaskField<T> field, T expected) {
-		if (task == null) return false;
-		Object actual;
-		
-		switch (field.column) {
-			case "id":
-			actual = task.mId;
-			break;
-			
-			case "file_url":
-			actual = task.mFileUrl;
-			break;
-			
-			case "status":
-			actual = task.status;
-			break;
-			
-			case "priority":
-			actual = task.mPriority;
-			break;
-			
-			case "mime_type":
-			actual = task.mMimeType;
-			break;
-			
-			case "output_file_name":
-			actual = task.getFileName();
-			break;
-			
-			case "created_at":
-			actual = task.mCreatedAt;
-			break;
-			
-			case "wifi_only":
-			actual = task.mWifiOnly;
-			break;
-			
-			case "buffer_size":
-			actual = task.mBufferSize;
-			break;
-			
-			case "progress":
-			actual = task.mProgress;
-			break;
-			
-			case "bytes_downloaded":
-			actual = task.mBytesDownloaded;
-			break;
-			
-			case "total_bytes":
-			actual = task.mTotalBytes;
-			break;
-			
-			case "output_uri":
-			actual = task.mOutputUri;
-			break;
-			
-			case "output_path":
-			actual = task.mOutputPath;
-			break;
-			
-			case "overwrite_uri":
-			actual = task.mOverwriteUri;
-			break;
-			
-			case "overwrite_path":
-			actual = task.mOverwritePath;
-			break;
-			
-			case "tree_uri":
-			actual = task.mTreeUri;
-			break;
-			
-			case "output_folder_path":
-			actual = task.mOutputFolderPath;
-			break;
-			
-			case "sub_folder_path":
-			actual = task.mSubFolderPath;
-			break;
-			
-			case "delete_on_removal":
-			actual = task.mDeleteOnRemoval;
-			break;
-			
-			case "locked_in_queue":
-			actual = task.mLockedInQueue;
-			break;
-			
-			default:
-			throw new IllegalArgumentException("Unsupported TaskField: " + field.column);
-		}
-		
-		return actual == expected || (actual != null && actual.equals(expected));
-	}
+	};
 	
 	void updateAutoSpeedLocked(DownloadTask task, long newSpeed) {
 		if (task == null) return;
@@ -587,19 +382,11 @@ final class TaskManager {
 		mTotalActiveSpeedForAutoConcurrency -= oldSpeed;
 		mTotalActiveSpeedForAutoConcurrency += newSpeed;
 		
-		if (!wasActiveForAuto && isActiveForAuto) {
-			mActiveSpeedTaskCountForAutoConcurrency++;
-		} else if (wasActiveForAuto && !isActiveForAuto) {
-			mActiveSpeedTaskCountForAutoConcurrency--;
-		}
+		if (!wasActiveForAuto && isActiveForAuto) mActiveSpeedTaskCountForAutoConcurrency++;
+		else if (wasActiveForAuto && !isActiveForAuto) mActiveSpeedTaskCountForAutoConcurrency--;
 		
-		if (mTotalActiveSpeedForAutoConcurrency < 0) {
-			mTotalActiveSpeedForAutoConcurrency = 0;
-		}
-		if (mActiveSpeedTaskCountForAutoConcurrency < 0) {
-			mActiveSpeedTaskCountForAutoConcurrency = 0;
-		}
-		
+        if (mTotalActiveSpeedForAutoConcurrency < 0) mTotalActiveSpeedForAutoConcurrency = 0;
+		if (mActiveSpeedTaskCountForAutoConcurrency < 0) mActiveSpeedTaskCountForAutoConcurrency = 0;
 		task.mLastSpeedForAutoConcurrency = newSpeed;
 	}
 	
@@ -612,14 +399,8 @@ final class TaskManager {
 			mActiveSpeedTaskCountForAutoConcurrency--;
 		}
 		
-		if (mTotalActiveSpeedForAutoConcurrency < 0) {
-			mTotalActiveSpeedForAutoConcurrency = 0;
-		}
-		
-		if (mActiveSpeedTaskCountForAutoConcurrency < 0) {
-			mActiveSpeedTaskCountForAutoConcurrency = 0;
-		}
-		
+		if (mTotalActiveSpeedForAutoConcurrency < 0) mTotalActiveSpeedForAutoConcurrency = 0;
+		if (mActiveSpeedTaskCountForAutoConcurrency < 0) mActiveSpeedTaskCountForAutoConcurrency = 0;
 		task.mLastSpeedForAutoConcurrency = 0;
 	}
 	
