@@ -35,6 +35,7 @@ public class DownloadTask {
 	public static final int LIFECYCLE_STARTED = 1;
 	
 	final SimpleDownloader mDownloader;
+	final String mOwnerId;
 	final long mId;
 	final Context mContext;
 	final Uri mTreeUri;
@@ -58,7 +59,6 @@ public class DownloadTask {
 	final String mCookies;
 	final String mChecksumAlgorithm;
 	final String mChecksumValue;
-	final int mBufferSize;
 	int mMaxRetryCount;
 	volatile Priority mPriority;
 	volatile boolean mWifiOnly;
@@ -72,7 +72,7 @@ public class DownloadTask {
 	volatile String mETag;
 	volatile String mLastModified;
 	volatile Exception mLastError;
-	final List<DownloadListener> mListeners = new CopyOnWriteArrayList<>();
+	final List<Listener> mListeners = new CopyOnWriteArrayList<Listener>();
 	volatile boolean mLockedInQueue = false;
 	volatile boolean mDeleteOnRemoval = false;
 	volatile boolean mLifecycleStarted = false;
@@ -101,45 +101,65 @@ public class DownloadTask {
 	volatile Call mThumbnailCall;
 	volatile boolean mThumbnailUrlAttempted;
 	
+	/** Receives updates for this task only. */
+	public interface Listener {
+		default void onProgress(int progress, long speed, long etaMs) {}
+		default void onComplete(Uri outputUri) {}
+		default void onError(Uri outputUri, Exception error) {}
+		default void onStart() {}
+		default void onQueued(int position) {}
+		default void onPaused() {}
+		default void onResumed() {}
+		default void onCancelled() {}
+		default void onRemoved(boolean outputDeleted) {}
+		default void onRetry(int attempt) {}
+		default void onWaitingForNetwork(int networkType) {}
+		default void onStatusChanged(Status status) {}
+		default void onActiveChanged(boolean isActive) {}
+		default void onLifecycleChanged(int lifecycle) {}
+	}
+	
 	DownloadTask(SimpleDownloader downloader, DownloadRequest request) {
 		// used for new tasks
 		
 		mDownloader = downloader;
+		mOwnerId = downloader.getOwnerId();
 		mContext = downloader.mContext;
-		mNotification = request.notification;
+		mNotification = new DownloadNotification(downloader.mNotification);
 		mTreeUri = request.treeUri;
 		mOutputFolderPath = request.outputFolderPath;
 		mOverwritePath = request.overwritePath;
 		mOverwriteUri = request.overwriteUri;
 		mOutputUri = request.overwriteUri;
 		mMediaStoreUri = request.mediaStoreUri;
-		mSubFolderPath = request.subFolderPath;
+		mSubFolderPath = request.hasSubFolder ? request.subFolderPath : downloader.getSubFolder();
 		mFileName = request.fileName;
 		mFileNameMode = request.fileNameMode;
 		mMimeTypeMode = request.mimeTypeMode;
 		mMimeType = request.mimeType;
 		mFileUrl = request.fileUrl;
-		mUserAgent = request.userAgent;
-		mHeaders = request.headers;
-		mCookies = request.cookies;
+		mUserAgent = request.hasUserAgent ? request.userAgent : downloader.getUserAgent();
+		Map<String,String> mergedHeaders = new HashMap<String,String>(downloader.getHeaders());
+		if (request.hasHeaders) mergedHeaders.putAll(request.headers);
+		mHeaders = mergedHeaders.isEmpty() ? Collections.<String,String>emptyMap() : Collections.unmodifiableMap(mergedHeaders);
+		mCookies = request.hasCookies ? request.cookies : downloader.getCookies();
 		mChecksumAlgorithm = request.checksumAlgorithm;
 		mChecksumValue = request.checksumValue;
 		mId = request.id;
-		mBufferSize = request.bufferSize <= 0 ? 16384 : request.bufferSize;
 		mPriority = request.priority == null ? Priority.NORMAL : request.priority;
-		mWifiOnly = request.wifiOnly;
-		mDeleteOnRemoval = request.deleteOnRemoval;
+		mWifiOnly = request.hasWifiOnly ? request.wifiOnly : downloader.isWifiOnlyDefault();
+		mDeleteOnRemoval = request.hasDeleteOnRemoval ? request.deleteOnRemoval : downloader.isDeleteOnRemovalDefault();
 		mLockedInQueue = request.lockedInQueue;
 		mMaxRetryCount = downloader.mRetryPolicy.getMaxRetryCount();
-		if (request.listener != null) mListeners.add(request.listener);
 	}
 	
 	private DownloadTask(SimpleDownloader downloader, TaskState state) {
 		// used for restored tasks
 		
 		mDownloader = downloader;
+		mOwnerId = state.ownerId;
 		mContext = downloader.mContext;
-		mNotification = new DownloadNotification(downloader.mRequestBuilder.notification);
+		mNotification = new DownloadNotification(downloader.mNotification);
 		mTreeUri = parseUri(state.treeUri);
 		mOutputFolderPath = state.outputFolderPath;
 		mOverwritePath = state.overwritePath;
@@ -163,20 +183,18 @@ public class DownloadTask {
 		mFileUrl = state.fileUrl;
 		mUserAgent = state.userAgent;
 		
-        if (state.headers == null || state.headers.isEmpty()) mHeaders = Collections.emptyMap();
-        else mHeaders = Collections.unmodifiableMap(new HashMap<String, String>(state.headers));
+		if (state.headers == null || state.headers.isEmpty()) mHeaders = Collections.emptyMap();
+		else mHeaders = Collections.unmodifiableMap(new HashMap<String, String>(state.headers));
 		
-        mCookies = state.cookies;
+		mCookies = state.cookies;
 		mChecksumAlgorithm = state.checksumAlgorithm;
 		mChecksumValue = state.checksumValue;
 		mId = state.id;
 		mMaxRetryCount = downloader.mRetryPolicy.getMaxRetryCount();
-		mBufferSize = state.bufferSize <= 0 ? 16384 : state.bufferSize;
 		mPriority = state.priority == null ? Priority.NORMAL : state.priority;
 		mWifiOnly = state.wifiOnly;
 		mDeleteOnRemoval = state.deleteOnRemoval;
 		mLockedInQueue = state.lockedInQueue;
-		if (downloader.mRequestBuilder.listener != null) mListeners.add(downloader.mRequestBuilder.listener);
 		mBytesDownloaded = state.bytesDownloaded;
 		mTotalBytes = state.totalBytes;
 		mProgress = state.progress;
@@ -243,10 +261,14 @@ public class DownloadTask {
 		if (mDeleteOnRemoval) deleted = OutputResolver.deleteOutput(this);
 		
 		synchronized (mDownloader.mLock) {
-			SimpleDownloader.taskManager.clearAutoSpeedLocked(this);
+			mDownloader.taskManager.clearAutoSpeedLocked(this);
 			mDownloader.slotManager.removeQueuedTask(this);
 			mDownloader.networkManager.getWaitingForPreferredNetwork().remove(this);
-			mDownloader.taskManager.removeTaskCompletelyLocked(this);
+			
+			synchronized (SimpleDownloader.GLOBAL_LOCK) {
+				mDownloader.taskManager.removeTaskCompletelyLocked(this);
+			}
+			
 			if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.removeTask(mId);
 		}
 		
@@ -285,13 +307,6 @@ public class DownloadTask {
 				mDownloader.slotManager.enqueueOrSubmitLocked(this, false);
 			}
 		}
-	}
-	
-	public void setPriority(Priority priority) {
-		mPriority = priority == null ? Priority.NORMAL : priority;
-		mDownloader.slotManager.reorderQueuedTask(this);
-		mDownloader.taskManager.sortTasks();
-		if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.updatePriority(mId, mPriority);
 	}
 	
 	public DownloadTask setWifiOnly(boolean enable) {
@@ -336,28 +351,29 @@ public class DownloadTask {
 		mDownloader.slotManager.submitTask(this, true);
 	}
 	
-	public DownloadTask addListener(DownloadListener listener) {
+	public DownloadTask addListener(Listener listener) {
 		if (listener != null && !mListeners.contains(listener)) mListeners.add(listener);
 		return this;
 	}
 	
-	public DownloadTask removeListener(DownloadListener listener) {
+	public DownloadTask removeListener(Listener listener) {
 		if (listener != null) mListeners.remove(listener);
 		return this;
 	}
 	
-	public void releaseCallbacks() {
+	public DownloadTask removeAllListeners() {
 		mListeners.clear();
+		return this;
 	}
 	
 	public long getId() { return mId; }
-    @NonNull    
+	@NonNull    
 	public String getFileUrl() { return mFileUrl; }
 	@NonNull
-    public String getFileName() { return mOutputName == null || mOutputName.isEmpty() ? mFileName : mOutputName; }
+	public String getFileName() { return mOutputName == null || mOutputName.isEmpty() ? mFileName : mOutputName; }
 	@NonNull
-    public String getMimeType() { return mMimeType; }
-    public long getTotalBytes() { return mTotalBytes; }
+	public String getMimeType() { return mMimeType; }
+	public long getTotalBytes() { return mTotalBytes; }
 	public long getDownloadedBytes() { return mBytesDownloaded; }
 	public long getSpeed() { return mSpeed; }
 	public int getProgress() { return mProgress; }
@@ -367,35 +383,34 @@ public class DownloadTask {
 	public Map<String,String> getHeaders() { return mHeaders; }
 	public String getCookies() { return mCookies; }
 	public boolean isWifiOnly() { return mWifiOnly; }
-	public int getBufferSize() { return mBufferSize; }
 	@NonNull
-    public Priority getPriority() { return mPriority; }
+	public Priority getPriority() { return mPriority; }
 	@NonNull
-    public Status getStatus() { return status; }
+	public Status getStatus() { return status; }
 	@Nullable
-    public Exception getError() { return mLastError; }
+	public Exception getError() { return mLastError; }
 	@NonNull
-    public SimpleDownloader getDownloader() { return mDownloader; }
+	public SimpleDownloader getDownloader() { return mDownloader; }
 	public int getMaxRetryCount() { return mMaxRetryCount; }
 	@Nullable
-    public Uri getOutputUri() { return mOutputUri; }
-    @Nullable
-    public String getOutputPath() { return mOutputPath; }
-    @Nullable
-    public Uri getOutputFolderUri() { return mTreeUri; }
+	public Uri getOutputUri() { return mOutputUri; }
 	@Nullable
-    public String getOutputFolderPath() { return mOutputFolderPath; }
+	public String getOutputPath() { return mOutputPath; }
 	@Nullable
-    public String getSubFolderPath() { return mSubFolderPath; }    
+	public Uri getOutputFolderUri() { return mTreeUri; }
 	@Nullable
-    public File getOutputFile() { return mOutputFile; }
+	public String getOutputFolderPath() { return mOutputFolderPath; }
 	@Nullable
-    public DocumentFile getOutputDocumentFile() { return mOutputDocFile; }
+	public String getSubFolderPath() { return mSubFolderPath; }    
 	@Nullable
-    public Uri getOverwriteUri() { return mOverwriteUri; }
-    @Nullable
-    public String getOverwritePath() { return mOverwritePath; }
-    public boolean canPause() { return isActive() || status == Status.QUEUED || status == Status.WAITING_FOR_NETWORK; }
+	public File getOutputFile() { return mOutputFile; }
+	@Nullable
+	public DocumentFile getOutputDocumentFile() { return mOutputDocFile; }
+	@Nullable
+	public Uri getOverwriteUri() { return mOverwriteUri; }
+	@Nullable
+	public String getOverwritePath() { return mOverwritePath; }
+	public boolean canPause() { return isActive() || status == Status.QUEUED || status == Status.WAITING_FOR_NETWORK; }
 	public boolean canResume() { return status == Status.PAUSED; }
 	public boolean canRetry() { return status == Status.FAILED; }    
 	public boolean isWaitingForNetwork() { return status == Status.WAITING_FOR_NETWORK; }
@@ -425,7 +440,7 @@ public class DownloadTask {
 	
 	void setStatus(final Status newStatus) {
 		final Status oldStatus = status;
-		if (oldStatus == newStatus) return;
+		if (newStatus == null || oldStatus == newStatus) return;
 		final boolean wasActive = isStartStatus(oldStatus);
 		final boolean isNowActive = isStartStatus(newStatus);
 		final boolean activeChanged = wasActive != isNowActive;
@@ -545,7 +560,19 @@ public class DownloadTask {
 	
 	boolean cannotBeReplaced() {
 		Future<?> future = mFuture;
-		return isActive() || mWorkerRunning || (future != null && !future.isDone());
+		return !isFinished() || mWorkerRunning || (future != null && !future.isDone());
+	}
+	
+	void removeForReplacement() {
+		synchronized (mDownloader.mLock) {
+			mDownloader.taskManager.clearAutoSpeedLocked(this);
+			mDownloader.slotManager.removeQueuedTask(this);
+			mDownloader.networkManager.getWaitingForPreferredNetwork().remove(this);
+			synchronized (SimpleDownloader.GLOBAL_LOCK) {
+				mDownloader.taskManager.removeTaskCompletelyLocked(this);
+			}
+			if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.removeTask(mId);
+		}
 	}
 	
 	String getOverwriteKey() {
@@ -554,4 +581,3 @@ public class DownloadTask {
 		return null;
 	}
 }
-
