@@ -4,16 +4,13 @@
 [![GitHub release](https://img.shields.io/github/v/release/jeetarc/SimpleDownloader?include_prereleases)](https://github.com/jeetarc/SimpleDownloader/releases)
 ![Android API](https://img.shields.io/badge/Android-API%2021%2B-3DDC84?logo=android&logoColor=white)
 
-SimpleDownloader is an Android download library project. It handles the parts that usually make downloading difficult: queues, concurrent downloads, pause and resume, unstable networks, scoped storage, task persistence, foreground, notifications, progress updates, etc.
+SimpleDownloader is an Android download library. It handles the parts that usually make downloading difficult: queues, concurrent downloads, pause and resume, unstable networks, scoped storage, task persistence, foreground, notifications, progress updates, etc.
 
-The simple API:
+A simple API:
 
 ```java
-DownloadTask task = SimpleDownloader.with(context)
-    .enableForeground(true)
-    .setOutput(folderPath, FileName.AUTO) // Or .setOutput(folderUri, FileName)
-    .setFileUrl(fileUrl)
-    .startDownload();
+DownloadTask task = SimpleDownloader.getInstance(context)
+    .startDownload(DownloadRequest.from(folderPath, FileName.AUTO, fileUrl));
 ```
 
 ## Features
@@ -55,9 +52,10 @@ Add SimpleDownloader to your app module:
 
 ```gradle
 dependencies {
-    implementation "com.github.jeetarc:SimpleDownloader:1.0.0-beta.3"
+    implementation "com.github.jeetarc:SimpleDownloader:1.0."
 }
 ```
+
 SimpleDownloader is built with Java 8 and compileSdk 35.
 
 ## Setup
@@ -73,194 +71,320 @@ If you enable `enableForeground(true)`, also add:
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 ```
-Foreground mode can automatically enable notifications, also you can use `enableNotifications(true)`.
+Foreground mode automatically enables notifications. You can also use `enableNotifications(true)` without foreground mode.
 
 If using normal file path, add:
 ``` XML
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 ```
-And request the permission at runtime.
-Storage permissions are not needed when saving to app-specific folder or using folderUri via MediaStore or Storage Access Framework.
+Request the permission at runtime.
+Storage permissions are not required when saving to an app-specific folder or using folderUri via MediaStore or Storage Access Framework.
 
-> All other permissions are added by default.
+> All other required permissions and components are added by default.
 
 ## Quick start
 
-SimpleDownloader has three built-in storage modes.
-
-**1. Download into a file system folder:**
+**1. Get a SimpleDownloader instance**
 
 ```java
-DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(folderPath, FileName.AUTO)
-    .setFileUrl(fileUrl)
-    .startDownload();
+// get the default instance (simple)
+SimpleDownloader downloader = SimpleDownloader.getInstance(context);
+
+// Or create your own instance
+SimpleDownloader downloader = new SimpleDownloader.Builder(context)
+    .setMaxConcurrent(3)
+    .setRetryCount(3)
+    .enableHistory(true)
+    .enableForeground(true)
+    .setAutoRestore(true)
+    .build();
 ```
 
-**2. Download into a MediaStore collection (Android 10+):**
+**2. Start downloads using `downloader`**
+
+SimpleDownloader has three built-in storage modes.
+
+ a) Download into a filesystem folder:
 
 ```java
-DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(MediaStore.Downloads.EXTERNAL_CONTENT_URI, FileName.AUTO)
-    .setFileUrl(fileUrl)
-    .startDownload();
+DownloadRequest request = DownloadRequest.from(folderPath, FileName.AUTO, fileUrl);
+DownloadTask task = downloader.startDownload(request);
+```
+
+b) Download into a MediaStore collection (Android 10+):
+
+```java
+DownloadRequest request = DownloadRequest.from(MediaStore.Downloads.EXTERNAL_CONTENT_URI, FileName.AUTO, fileUrl);
+DownloadTask task = downloader.startDownload(request);
 ```
 
 You can also use other MediaStore collections:
+
 ```java
 MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 MediaStore.Video.Media.EXTERNAL_CONTENT_URI
 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
 ```
 
-**3. Download into a selected folder via SAF/document-tree:**
+c) Download into a selected folder via SAF/document-tree:
 
 ```java
-DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(treeUri, FileName.AUTO)
-    .setFileUrl("https://example.com/files/document.pdf")
-    .startDownload();
+DownloadRequest request = DownloadRequest.from(treeUri, FileName.AUTO, fileUrl);
+DownloadTask task = downloader.startDownload(request);
 ```
 
 Keep the URI permission:
-```java
-int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
 
+```java
+int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
 getContentResolver().takePersistableUriPermission(treeUri, flags);
 ```
 
-**Use a custom name if needed:**
+**You can also use a custom file name:** 
 ```java
-DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(folderUri, "example.mp4")
-    .setFileUrl(fileUrl)
-    .startDownload();
+DownloadRequest request = DownloadRequest.from(folderPath, "example.mp4", fileUrl);
 ```
 
-> SimpleDownloader creates a new file inside each folder. If a file with the same name already exists, it creates a unique name automatically.
+> SimpleDownloader creates a new file inside each output folder. If the same name already exists, it creates a unique name automatically.
 
 **Overwrite a file:**
 
-Use a DocumentFile URI or a specific MediaStore item URI:
+a) Using a DocumentFile URI or specific MediaStore item URI
 
 ```java
-DownloadTask task = SimpleDownloader.with(context)
-    .overwrite(fileUri)
-    .setFileUrl(fileUrl)
-    .startDownload();
+DownloadRequest request = DownloadRequest.fromOverwrite(fileUri, fileUrl);
+DownloadTask task = downloader.startDownload(request);
 ```
 
-Or use a file path:
+b) Using a file path:
 
 ```java
-DownloadTask task = SimpleDownloader.with(context)
-    .overwrite(outputFile.getAbsolutePath())
-    .setFileUrl(fileUrl)
-    .startDownload();
+DownloadRequest request = DownloadRequest.fromOverwrite(file.getAbsolutePath(), fileUrl);
+DownloadTask task = downloader.startDownload(request);
 ```
 
-## Subfolder:
-A subfolder is an optional folder inside the main output folder where you want the downloaded file to be saved.
+**Start multiple downloads:**
+
+You can start several downloads together:
 
 ```java
-DownloadTask task = SimpleDownloader.with(context)
+List<DownloadRequest> requests = new ArrayList<>();
+requests.add(DownloadRequest.from(folderUri, "one.mp4", url1));
+requests.add(DownloadRequest.from(folderUri, "two.mp4", url2));
+requests.add(DownloadRequest.from(folderUri, "three.mp4", url3));
+
+List<DownloadTask> tasks = downloader.startDownloads(requests);
+```
+
+## SimpleDownloader
+
+Create an independent downloader with a builder:
+
+```java
+SimpleDownloader downloader = new SimpleDownloader.Builder(context)
+    .setMaxConcurrent(3)
+    .setRetryCount(3)
+    .enableHistory(true)
+    .setAutoRestore(true)
+    .build();
+```
+
+Available `SimpleDownloader.Builder` settings:
+```java
+setOwnerId(String ownerId)
+setHttpClient(OkHttpClient client)
+setMaxConcurrent(int max)
+enableHistory(boolean enable)
+enableForeground(boolean enable)
+enableNotifications(boolean enable)
+setNotification(DownloadNotification notification)
+setProgressInterval(long ms)
+setConnectTimeout(int ms)
+setReadTimeout(int ms)
+setBufferSize(int bytes)
+setRetryCount(int count)
+setRetryPolicy(RetryPolicy retryPolicy)
+enableResumeOnNetworkGain(boolean enable)
+setAutoRestore(boolean enable)
+restoreTasks()
+restoreTasks(TaskField<?> field, Object value)
+enableSorting(boolean enable)
+setTaskComparator(Comparator<DownloadTask> comparator)
+```
+
+You can also use the default-owner downloader:
+
+```java
+SimpleDownloader downloader = SimpleDownloader.getInstance(context);
+```
+The default instance has a simple configuration. It is recommended to build your own instance for full features.
+- `builder(context)` creates a new independent instance.
+- `getInstance(context)` returns the application's default-owner instance.
+
+### Owner ID
+
+Use an owner ID when you want separate download profiles.
+
+```java
+SimpleDownloader downloader = SimpleDownloader.builder(context)
+    .setOwnerId("media_downloads")
+    .build();
+```
+Tasks restored by this downloader belong to its owner ID.
+
+### Controls
+
+Control a task through the downloader by ID:
+
+```java
+downloader.pause(id);
+downloader.resume(id);
+downloader.cancel(id);
+downloader.retry(id);
+downloader.requeue(id);
+downloader.remove(id);
+downloader.forceDownload(id);
+```
+
+Control multiple tasks:
+
+```java
+downloader.pauseAll();
+downloader.resumeAll();
+downloader.cancelAll();
+downloader.retryAll();
+downloader.requeueAll();
+downloader.removeAll();
+
+downloader.pause(Priority.LOW);
+downloader.resumeAll(Priority.HIGH);
+downloader.remove(Status.COMPLETED);
+downloader.remove(Priority.LOW);
+```
+
+Update a task by ID:
+
+```java
+downloader.setPriority(id, Priority.NEXT);
+downloader.setWifiOnly(id, true);
+downloader.setLockedInQueue(id, true);
+downloader.setDeleteOnRemoval(id, true);
+```
+
+Find tasks:
+
+```java
+DownloadTask task = downloader.getTask(id);
+List<DownloadTask> all = downloader.getTasks();
+List<DownloadTask> completedTasks = downloader.getTasks(TaskField.STATUS, Status.COMPLETED);
+DownloadTask task = downloader.getTask(TaskField.FILE_NAME, fileName);
+```
+`getTask(TaskField, value)` returns the latest matching task, or `null` when no task matches.
+You can filter the task list by any supported `TaskField`.
+
+Check task counts and state:
+
+```java
+downloader.getTotalCount();
+downloader.getActiveCount();
+downloader.getQueuedCount();
+downloader.getOccupiedCount();
+downloader.getEffectiveMaxConcurrent();
+downloader.isDownloading();
+downloader.isDownloading(id);
+downloader.hasTask(id);
+downloader.hasTask(fileUrl);
+```
+
+Downloader configuration and state can be read back with:
+
+```java
+downloader.getOwnerId();
+downloader.getRetryPolicy();
+downloader.getConnectTimeout();
+downloader.getReadTimeout();
+downloader.getProgressInterval();
+downloader.getBufferSize();
+downloader.getMaxConcurrent();
+downloader.getEffectiveMaxConcurrent();
+downloader.getSubFolder();
+downloader.getHeaders();
+downloader.getUserAgent();
+downloader.getCookies();
+downloader.isWifiOnlyDefault();
+downloader.isDeleteOnRemovalDefault();
+downloader.areNotificationsEnabled();
+downloader.isForegroundEnabled();
+downloader.isAdaptiveConcurrencyEnabled();
+```
+
+More:
+- [Callbacks and Listeners](#Callbacks-and-Listeners)
+- [Restore tasks](#Restore-tasks-&-Database)
+- [Foreground and Notifications](#Foreground-and-Notifications)
+
+## DownloadRequest
+
+`DownloadRequest` is the description of a single download.
+
+Shortcut factory methods:
+
+```java
+DownloadRequest.from(folderUri, fileName, fileUrl)
+DownloadRequest.from(folderUri, FileName.AUTO, fileUrl)
+DownloadRequest.from(folderPath, fileName, fileUrl)
+DownloadRequest.from(folderPath, FileName.AUTO, fileUrl)
+DownloadRequest.fromOverwrite(fileUri, fileUrl)
+DownloadRequest.fromOverwrite(filePath, fileUrl)
+```
+
+Use the builder when you need more control.
+
+```java
+DownloadRequest request = DownloadRequest.builder()
+    .setFileUrl(fileUrl)
     .setOutput(folderUri, FileName.AUTO)
-    .setSubFolder("app")
-    .setFileUrl(fileUrl)
-    .startDownload();
+    .addHeader("Authorization", "Bearer " + token)
+    .setPriority(Priority.HIGH)
+    .build();
 ```
 
-Subfolders can be nested, for example `"app/videos"`. They work with filesystem paths, SAF/document-tree output, and MediaStore output.
-
-## Listener for download updates
-
-All `DownloadListener` callbacks run on the main thread. Every method is optional.
+Available request settings:
 
 ```java
-DownloadListener listener = new DownloadListener() {
-    @Override
-    public void onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {
-        progressBar.setProgress(progress);
-        speedText.setText(Formator.formatSpeed(speed));
-        etaText.setText(Formator.formatEta(etaMs));
-    }
-
-    @Override
-    public void onComplete(long id, Uri outputUri, DownloadTask task) {
-        // The download finished successfully.
-    }
-
-    @Override
-    public void onError(long id, Uri outputUri, Exception error, DownloadTask task) {
-        // The download failed.
-    }
-};
-
-DownloadTask task = SimpleDownloader.with(this)
-    .setOutput(folderUri, FileName.AUTO)
-    .setFileUrl(fileUrl)
-    .addListener(listener)
-    .startDownload();
+setId(long id)
+setFileUrl(String fileUrl)
+setOutput(Uri folderUri, String fileName)
+setOutput(Uri folderUri, FileName fileName)
+setOutput(String folderPath, String fileName)
+setOutput(String folderPath, FileName fileName)
+overwrite(String outputPath)
+overwrite(Uri fileUri)
+setSubFolder(String subFolder)
+setMimeType(String mimeType)
+setMimeType(MimeType mimeType)
+setUserAgent(String userAgent)
+addHeader(String key, String value)
+setHeaders(Map<String, String> headers)
+setCookies(String cookies)
+setChecksum(String algorithm, String checksum)
+setPriority(Priority priority)
+setWifiOnly(boolean wifiOnly)
+setLockedInQueue(boolean enable)
+setDeleteOnRemoval(boolean enable)
 ```
+More:
+- [Authorize via headers, cookies](#Authorization)
+- [Set Subfolder](#Subfolder)
+- [FileName and MimeType modes](#`FileName`-and-`MimeType`-modes)
+- [Explicit MIME Type](#MIME-Type)
 
-Other callbacks include:
 
-```java
-onStart(long id, DownloadTask task) {}
-onQueued(long id, int position, DownloadTask task) {}
-onPaused(long id, DownloadTask task) {}
-onResumed(long id, DownloadTask task) {}
-onCancelled(long id, DownloadTask task) {}
-onRemoved(long id, boolean outputDeleted, DownloadTask task) {}
-onRetry(long id, int attempt, DownloadTask task) {}
-onWaitingForNetwork(long id, int networkType, DownloadTask task) {}
-onStatusChanged(long id, Status status, DownloadTask task) {}
-onActiveChanged(long id, boolean isActive, DownloadTask task) {}
-onLifecycleChanged(long id, int lifecycle, DownloadTask task) {}
-```
+## DownloadTask
+`DownloadTask` is a live task object and provides access to its state, output, configuration, listeners, controls, etc.
 
-`onStart()` can run again on resume and retry. Use `onLifecycleChanged()` to know the start or end of the full task lifecycle.
-
-You can also add listeners directly on a task:
-
-```java
-task.addListener(listener);
-task.removeListener(listener);
-task.releaseCallbacks();
-```
-
-## Observe the task list
-
-Use `TaskListObserver` when showing all downloads in a list, RecyclerView, etc.
-
-```java
-TaskListObserver observer = new TaskListObserver() {
-    @Override
-    public void onTasksChanged(List<DownloadTask> tasks) {
-        // The list order changed
-    }
-
-    @Override
-    public void onTaskUpdated(long id, DownloadTask task) {
-        // Update only the matching item
-    }
-};
-
-SimpleDownloader downloader = SimpleDownloader.with(this)
-    .addObserver(observer);
-```
-
-The list passed to `onTasksChanged()` is an unmodifiable snapshot. `DownloadTask` objects inside it are live and can update.
-
-Release the observer when not needed:
-
-```java
-SimpleDownloader.releaseObserver(observer);
-```
-
-## Control a task
+### Control a task
 
 ```java
 task.pause();
@@ -270,33 +394,20 @@ task.retry();
 task.requeue();
 task.remove();
 task.forceDownload();
-```
 
-Check:
-
-```java
-task.canPause();
-task.canResume();
-task.canRetry();
-```
-
-Change some task settings after creation:
-
-```java
-task.setPriority(Priority.HIGH);
+// Change some task settings after creation:
 task.setWifiOnly(true);
 task.setLockedInQueue(true);
 task.setDeleteOnRemoval(true);
 ```
 
 Note:
-
 - `cancel()` stops the task and deletes its output.
 - `remove()` removes the task from SimpleDownloader register.
 - `remove()` deletes the output only when `setDeleteOnRemoval(true)` is enabled.
-- `forceDownload()` starts a queued task even when it is locked. It doesn't care about concurrency limit
+- `forceDownload()` starts a queued task even when it is locked. It doesn't care about the concurrency limit
 
-## Task info
+### Task information
 
 ```java
 task.getId();
@@ -325,6 +436,10 @@ task.getError();
 task.getCreatedAt();
 task.getMaxRetryCount();
 
+task.canPause();
+task.canResume();
+task.canRetry();
+
 task.isActive();
 task.isQueued();
 task.isPaused();
@@ -333,228 +448,270 @@ task.isFinished();
 task.isOccupiedSlot();
 ```
 
-## Reuse a configured instance
+More:
+- [Task status](#Task-status)
+- [Understand TaskFields](#TaskFields)
+- [Task Listeners](#DownloadTask.Listener)
+- [Error handling](#Error-handling)
 
-You can configure a `SimpleDownloader` instance once inside `onCreate()` and reuse it:
+## Callbacks and Listeners
+Use listeners and the observer to listen for download updates. All callbacks run on the main thread and are optional.
 
-```java
-private SimpleDownloader downloader;
+### SimpleDownloader.Listener
 
-@Override
-protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-
-    downloader = SimpleDownloader.with(this)
-        .setMaxConcurrent(3)
-        .setConnectTimeout(30_000)
-        .setReadTimeout(30_000)
-        .setProgressInterval(300)
-        .setBufferSize(16 * 1024)
-        .enableHistory(true);
-}
-
-// You can configure all fields you want be the same across downloads.
-```
-
-Then use the configured instance whenever you start a download:
+`SimpleDownloader.Listener` receives updates from every task owned by that downloader:
 
 ```java
-DownloadTask task = downloader
-    .setOutput(folderUri, fileName)
-    .setMimeType(mimeType)
-    .setFileUrl(fileUrl)
-    .startDownload();
+SimpleDownloader.Listener listener = new SimpleDownloader.Listener() {
+    @Override
+    public void onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {
+        progressBar.setProgress(progress);
+        speedText.setText(Formator.formatSpeed(speed));
+        etaText.setText(Formator.formatEta(etaMs));
+    }
+
+    @Override
+    public void onComplete(long id, Uri outputUri, DownloadTask task) {
+        // The download finished successfully.
+    }
+
+    @Override
+    public void onError(long id, Uri outputUri, Exception error, DownloadTask task) {
+        // The download failed.
+    }
+};
+
+downloader.addListener(listener);
 ```
 
-You can also use the same instance to restore tasks:
+Available callbacks are:
 
 ```java
-List<DownloadTask> tasks = downloader.restoreTasks();
+onStart(long id, DownloadTask task) {}
+onQueued(long id, int position, DownloadTask task) {}
+onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {}
+onPaused(long id, DownloadTask task) {}
+onResumed(long id, DownloadTask task) {}
+onCancelled(long id, DownloadTask task) {}
+onComplete(long id, Uri outputUri, DownloadTask task) {}
+onError(long id, Uri outputUri, Exception error, DownloadTask task) {}
+onRemoved(long id, boolean outputDeleted, DownloadTask task) {}
+onRetry(long id, int attempt, DownloadTask task) {}
+onWaitingForNetwork(long id, int networkType, DownloadTask task) {}
+onStatusChanged(long id, Status status, DownloadTask task) {}
+onActiveChanged(long id, boolean isActive, DownloadTask task) {}
+onLifecycleChanged(long id, int lifecycle, DownloadTask task) {}
 ```
 
-Other common settings, such as retry policy, user agent, priority, Wi-Fi-only mode, notifications, foreground execution, etc can also be configured on the same `downloader` instance, instead of being set again for every download.
-
-> File URL, output destination, and custom ID should be set again before starting each task.
-
-
-## Global controls
-
-Control a task by ID:
+Remove listeners when they are no longer needed:
 
 ```java
-SimpleDownloader.pause(id);
-SimpleDownloader.resume(id);
-SimpleDownloader.cancel(id);
-SimpleDownloader.retry(id);
-SimpleDownloader.requeue(id);
-SimpleDownloader.remove(id);
-SimpleDownloader.forceDownload(id);
+downloader.removeListener(listener);
+downloader.removeAllListeners();
 ```
 
-Control multiple tasks:
+### DownloadTask.Listener
+`DownloadTask.Listener` receives updates only for the task it attached to.
 
 ```java
-SimpleDownloader.pauseAll();
-SimpleDownloader.resumeAll();
-SimpleDownloader.cancelAll();
-SimpleDownloader.retryAll();
-SimpleDownloader.requeueAll();
-SimpleDownloader.removeAll();
+DownloadTask.Listener taskListener = new DownloadTask.Listener() {
+    @Override
+    public void onProgress(int progress, long speed, long etaMs) {
+        // Updates for this task only.
+    }
 
-SimpleDownloader.pause(Priority.LOW);
-SimpleDownloader.resumeAll(Priority.HIGH);
-SimpleDownloader.remove(Status.COMPLETED);
-SimpleDownloader.remove(Priority.LOW);
+    @Override
+    public void onComplete(Uri outputUri) {
+        // This task finished.
+    }
+};
+
+task.addListener(taskListener);
 ```
 
-get task from registry:
+Available callbacks are:
 
 ```java
-DownloadTask task = SimpleDownloader.getTask(id);
-List<DownloadTask> all = SimpleDownloader.getTasks();
-List<DownloadTask> completed = SimpleDownloader.getTasks(TaskField.STATUS, Status.COMPLETED);
-SimpleDownloader.getTask(TaskField.FILE_NAME, fileName) // returns latest matching single task, null if not found.
-
-int total = SimpleDownloader.getTotalCount();
-int active = SimpleDownloader.getActiveCount();
-int queued = SimpleDownloader.getQueuedCount();
-int occupied = SimpleDownloader.getOccupiedCount();
-int concurrency = SimpleDownloader.getEffectiveMaxConcurrent();
+onStart()
+onQueued(int position)
+onProgress(int progress, long speed, long etaMs)
+onPaused()
+onResumed()
+onCancelled()
+onComplete(Uri outputUri)
+onError(Uri outputUri, Exception error)
+onRemoved(boolean outputDeleted)
+onRetry(int attempt)
+onWaitingForNetwork(int networkType)
+onStatusChanged(Status status)
+onActiveChanged(boolean isActive)
+onLifecycleChanged(int lifecycle)
 ```
-
-Update a task by ID:
+Remove listeners when they are no longer needed:
 
 ```java
-SimpleDownloader.setPriority(id, Priority.NEXT);
-SimpleDownloader.setWifiOnly(id, true);
-SimpleDownloader.setLockedInQueue(id, true);
-SimpleDownloader.setDeleteOnRemoval(id, true);
+task.removeListener(taskListener);
+task.removeAllListeners();
 ```
 
-## Restore tasks
-Restore methods immediately restore saved tasks using the downloader's current configuration.
+> `onStart()` can run again when a task starts after resume or retry. Use `onLifecycleChanged()` when you need to know the beginning or end of the full task lifecycle.
 
-**Important:** Configure all downloader settings before calling any restore method.
-Restore methods should always be the **last configuration call**, otherwise restored tasks may not receive the configuration called after restore.
+### TaskListObaerver
+`TaskListObserver` observes the full task list. Use it when showing all downloads in a list, RecyclerView, etc.
 
-### Automatic Restore:
+```java
+TaskListObserver observer = new TaskListObserver() {
+    @Override
+    public void onTasksChanged(int size, List<DownloadTask> tasks) {
+        // The list order changed.
+    }
+
+    @Override
+    public void onTaskUpdated(long id, DownloadTask task) {
+        // Update only the matching item.
+    }
+};
+
+downloader.addObserver(observer);
+```
+The list passed to `onTasksChanged()` is an unmodifiable snapshot. The `DownloadTask` objects inside it are still live and can update.
+
+Release it when not needed:
+
+```java
+downloader.removeObserver(observer);
+```
+**Full cleanup:**
+- `SimpleDownloader.Listener`
+- `DownloadTask.Listener`
+- `TaskListObserver`
+
+```java
+downloader.releaseAllCallbacks();
+```
+
+## Restore tasks & Database
+
+Restore methods are configured on the `SimpleDownloader.Builder`.
+Only one restore mode can be configured on a builder:
+
+- `setAutoRestore(true)`
+- `restoreTasks()`
+- `restoreTasks(field, value)`
+
+
+### Automatic Restore
 
 Enable automatic restoration of previously saved download tasks:
 
 ```java
-SimpleDownloader downloader = SimpleDownloader.with(context)
-    .setRetryPolicy(...)
-    .enableNotifications(true)
-    .enableForeground(true)
-    .setConnectTimeout(30_000)
-    .setReadTimeout(30_000)
-    .setProgressInterval(300)
-    .setNotification(...)
-    .setAutoRestore(true); // Keep this last.
-```
-When enabled, SimpleDownloader automatically restores previously saved tasks and resumes eligible ones.
-You do not need to call restoreTasks() separately when using auto restore.
-Auto restore is disabled by default.
-
-### Explicit restore when your app ready to show or continue downloads:
-
-```java
-restored = downloader.restoreTasks();
+SimpleDownloader downloader = SimpleDownloader.builder(context)
+    .setAutoRestore(true)
+    .build();
 ```
 
-Active tasks are restored as paused. Resume the tasks you want to continue:
+When enabled, SimpleDownloader restores the saved tasks for this owner and automatically resumes eligible tasks. Auto restore is disabled by default.
+
+
+### Explicit restore
+
+Restore all saved tasks
 
 ```java
-SimpleDownloader.resumeAll();
-
-//or
-for (DownloadTask task : restored) {
-     task.resume();
-}
+SimpleDownloader downloader = new SimpleDownloader.Builder(context)
+    .enableHistory(true)
+    .restoreTasks()
+    .build();
 ```
 
-### Restore matching tasks:
-`restoreTasks(...)` returns an empty list when no match:
+Restored active downloads are restored as paused. Resume the tasks you want to continue:
+
 ```java
-List<DownloadTask> paused = downloader.restoreTasks(TaskField.STATUS, Status.PAUSED);
-
-List<DownloadTask> videos = downloader.restoreTasks(TaskField.MIME_TYPE, "video/mp4");
-
-List<DownloadTask> matchingUrl = downloader.restoreTasks(TaskField.FILE_URL, fileUrl);
+downloader.resumeAll();
 ```
 
-`restoreTask()` returns a single newest matching task, or `null` when no match:
-```java
-DownloadTask task = downloader.restoreTask(TaskField.FILE_URL, fileUrl);
+### Restore matching tasks
 
-if (task != null) task.resume();
-```
-
-Available fields:
+Restore only tasks matching a field and value:
 
 ```java
-TaskField.ID
-TaskField.FILE_URL
-TaskField.STATUS
-TaskField.PRIORITY
-TaskField.MIME_TYPE
-TaskField.FILE_NAME
-TaskField.CREATED_AT
-TaskField.WIFI_ONLY
-TaskField.BUFFER_SIZE
-TaskField.PROGRESS
-TaskField.BYTES_DOWNLOADED
-TaskField.TOTAL_BYTES
-TaskField.OUTPUT_URI
-TaskField.OUTPUT_PATH
-TaskField.OVERWRITE_URI
-TaskField.OVERWRITE_PATH
-TaskField.OUTPUT_FOLDER_URI
-TaskField.OUTPUT_FOLDER_PATH
-TaskField.SUB_FOLDER_PATH
-TaskField.DELETE_ON_REMOVAL
-TaskField.LOCKED_IN_QUEUE
+SimpleDownloader downloader = new SimpleDownloader.Builder(context)
+    .restoreTasks(TaskField.STATUS, Status.PAUSED)
+    .build();
 ```
 
 Finished tasks are kept in the database only when history is enabled:
 
 ```java
-SimpleDownloader.with(context)
-    .enableHistory(true);
+SimpleDownloader downloader = SimpleDownloader.builder(context)
+   .enableHistory(true)
+   .built();
 ```
+
+### Clear database
+
+Clear the persisted data for the tasks form the database or reset the internal data table. 
+This does not delete the downloaded file or remove the task from in-memory registry.
+
+```java
+SimpleDownloader.database().deleteForTask(taskId);
+SimpleDownloader.database().deleteForOwner(ownerId);
+SimpleDownloader.database().deleteForDefaultOwner();
+SimpleDownloader.database().deleteForAll();
+SimpleDownloader.database().resetTasksTable();
+```
+
+> Read the Javadoc for the methods before using. These can course unwanted tasks data lose.
 
 ## Queue and concurrency
 
-By default, SimpleDownloader use automatic concurrency. It starts with 1 and go up to 10 slot beased on download speed.
+By default, SimpleDownloader uses automatic concurrency. It starts with 1 and can increase up to 10 slots based on download speed.
 
-auto concurrency starts when `setMaxConcurrent(0)` or not set.
+Automatic concurrency is enabled with `setMaxConcurrent(0)` or when it is not set.
+
+Use a fixed number of concurrent downloads when needed:
+
+```java
+SimpleDownloader downloader = SimpleDownloader.builder(context)
+    .setMaxConcurrent(3)
+    .build();
+```
+
+There is also a global concurrency cap shared by downloader instances:
+
+```java
+SimpleDownloader.setGlobalConcurrent(5);
+```
+Use `0` to disable the global cap.
 
 Stop queued tasks from starting automatically when a slot becomes free:
 
 ```java
-SimpleDownloader.with(context)
-    .setDownloadOnSlotFree(false);
+downloader.setDownloadOnSlotFree(false);
 ```
 
-Lock task in the queue:
+Lock a queued task:
 
 ```java
 task.setLockedInQueue(true);
+
+// or
+downloader.setLockedInQueue(id);
 ```
 
-Priorities :
+## Task Priorities
 
 ```java
-Priority.NEXT
 Priority.HIGH
 Priority.NORMAL
 Priority.LOW
 
-// NEXT > HIGH > NORMAL > LOW
+// HIGH > NORMAL > LOW
 ```
 
-Task statuses:
+## Task status
 
+Available statuses:
 ```java
 Status.STARTING
 Status.QUEUED
@@ -568,156 +725,75 @@ Status.COMPLETED
 Status.FAILED
 ```
 
+You can also use:
+```java
+status.getCode();
+status.isActive();
+status.isFinished();
+```
+
 ## Retry policy
 
-The default policy with one automatic retry. Configure:
+The default retry policy allows one automatic retry. Configure it when needed:
 
 ```java
 RetryPolicy retryPolicy = RetryPolicy.builder()
     .maxRetryCount(3)
-    .initialDelayMs(1000)
+    .initialDelayMs(750)
     .multiplier(2.0)
     .maxDelayMs(30_000)
     .build();
 
-SimpleDownloader downloader = SimpleDownloader.with(context)
-    .setRetryPolicy(retryPolicy);
+SimpleDownloader downloader = SimpleDownloader.builder(context)
+    .setRetryPolicy(retryPolicy)
+    .build();
 ```
 
-Retry settings stay on the `SimpleDownloader` instance used to create or restore tasks.
-
-## MIME Type
-A MIME type (media type) is a used to identify the format of a file, SimpleDownloader resolves it automatically, but can be set explicitly:
+Or simply set the retry count:
 
 ```java
-DownloadTask task = SimpleDownloader.with(context)
+SimpleDownloader.builder(context)
+    .setRetryCount(3)
+    .build();
+```
+
+```java
+RetryPolicy retryPolicy = RetryPolicy.ofAttempts(3);
+```
+
+Read the configured retry policy when needed:
+```java
+retryPolicy.getMaxRetryCount();
+retryPolicy.getInitialDelayMs();
+retryPolicy.getMaxDelayMs();
+retryPolicy.getMultiplier();
+```
+
+## MIME Type
+
+A MIME type is used to identify the format of a file. SimpleDownloader resolves it automatically, but you can set it explicitly:
+
+```java
+DownloadRequest request = DownloadRequest.builder()
     .setOutput(folderUri, "manual.pdf")
     .setMimeType("application/pdf")
     .setFileUrl(fileUrl)
-    .startDownload();
+    .build();
 ```
 
 Or use automatic resolution:
-```java
-.setMimeType(MimeType.AUTO) // or MimeType.FROM_NAME
-```
-
-## Network, headers, cookies
 
 ```java
-DownloadTask task = SimpleDownloader.with(context)
-    .setOutput(folderUri, FileName.AUTO)
-    .setFileUrl(fileUrl)
-    .setHeader("Authorization", "Bearer " + token)
-    .setHeader("Referer", pageUrl)
-    .setCookies("session=" + sessionId)
-    .setWifiOnly(true)
-    .startDownload();
+.setMimeType(MimeType.AUTO)
 ```
 
-Add headers:
+Resolve the MIME type from the final file name only:
 
 ```java
-Map<String, String> headers = new HashMap<>();
-headers.put("Authorization", "Bearer " + token);
-headers.put("Referer", pageUrl);
-
-SimpleDownloader.with(context)
-    .setHeaders(headers);
+.setMimeType(MimeType.FROM_NAME)
 ```
 
-Network info:
-
-```java
-boolean available = SimpleDownloader.isNetworkAvailable();
-int networkType = SimpleDownloader.getNetworkType();
-```
-
-Network constants:
-
-```java
-NETWORK_TYPE_NONE
-NETWORK_TYPE_UNKNOWN
-NETWORK_TYPE_WIFI
-NETWORK_TYPE_CELLULAR
-NETWORK_TYPE_ETHERNET
-NETWORK_TYPE_BLUETOOTH
-NETWORK_TYPE_VPN
-NETWORK_TYPE_USB
-NETWORK_TYPE_ROAMING
-```
-
-Waiting tasks resume when the network becomes available by default. Change with:
-
-```java
-SimpleDownloader.with(context)
-    .enableResumeOnNetworkGain(false);
-```
-
-## Notifications
-
-Notifications are optional and disabled by default.
-
-```java
-DownloadNotification notification = new DownloadNotification()
-    .setSmallIcon(R.drawable.ic_download)
-    .setCompleteIcon(R.drawable.ic_download_done)
-    .setErrorIcon(R.drawable.ic_download_error)
-    .setColorAccent(0xFF0087E5)
-    .setShowPauseAction(true)
-    .setShowCancelAction(true)
-    .setShowRetryAction(true);
-
-DownloadTask task = SimpleDownloader.with(context)
-    .enableNotifications(true)
-    .setNotification(notification)
-    .setOutput(folderUri, FileName.AUTO)
-    .setFileUrl(fileUrl)
-    .startDownload();
-```
-`DownloadNotification` configuration is optional, only use `enableNotifications(true)` if you don't want to customize. It will use the default config.
-
-Run tasks using a foreground service:
-
-```java
-SimpleDownloader.with(context)
-    .enableForeground(true)
-    .setOutput(folderUri, FileName.AUTO)
-    .setFileUrl(fileUrl)
-    .startDownload();
-```
-
-SimpleDownloader has built in thumbnail system for notifications, it can generate a thumbnail from a video, image, audio (album art), APK, PDF automatically.
-
-You can also set a thumbnail:
-
-```java
-notification.setThumbnail(bitmap);
-```
-
-Or load it from a URL:
-
-```java
-notification.setThumbnailUrl(thumbnailUrl, thumbHeaders);
-
-// pass null for headers, if it not available
-```
-
-`DownloadNotification` can configure the channel, importance, lock-screen visibility, sound, vibration, color, update interval, actions, etc.
-
-## Checksums
-
-Verify the completed file with algorithms supported by `MessageDigest`. Like SHA-256, SHA-1, or MD5:
-
-```java
-DownloadTask task = SimpleDownloader.with(context)
-    .setChecksum("SHA-256", expectedChecksum)
-    .setOutput(folderUri, FileName.AUTO)
-    .setFileUrl(fileUrl)
-    .startDownload();
-```
-
-## File names and MIME types modes
+## `FileName` and `MimeType` modes
 
 ```java
 FileName.AUTO
@@ -729,15 +805,187 @@ MimeType.AUTO
 MimeType.FROM_NAME
 ```
 
-`AUTO` uses the URL, response headers, file extension, and content type to resolve the name and MIME type.
+- `FileName.AUTO` uses the URL, response headers, file extension, and content type to resolve the name.
+- `FileName.TIME_BASED` creates a time-based file name.
+- `MimeType.AUTO` uses the URL, response headers, file extension, and content type to resolve the MIME type.
+- `MimeType.FROM_NAME` resolves it from the file name.
+
+## Subfolder
+
+A subfolder is an optional folder inside the main output folder where you want the downloaded file to be saved.
+
+```java
+DownloadRequest request = DownloadRequest.builder()
+    .setOutput(folderUri, FileName.AUTO)
+    .setSubFolder("App")
+    .setFileUrl(fileUrl)
+    .build();
+```
+
+Subfolders can be nested, for example `"App/videos"`. They work with filesystem paths, SAF/document-tree output, and MediaStore output.
+
+## Authorization 
+Authorize via headers, cookies, and a user agent.
+
+```java
+DownloadRequest request = DownloadRequest.builder()
+    .setOutput(folderUri, FileName.AUTO)
+    .setFileUrl(fileUrl)
+    .setUserAgent(userAgent)
+    .addHeader("Authorization", "Bearer " + token)
+    .addHeader("Referer", pageUrl)   // or .setHeaders(headersMap);
+    .setCookies("session=" + sessionId)
+    .setWifiOnly(true)
+    .build();
+```
+
+**You can set common authorization on the `downloader` directly:**
+
+```java
+Map<String, String> headers = new HashMap<>();
+headers.put("Authorization", "Bearer " + token);
+headers.put("Referer", pageUrl);
+downloader.setHeaders(headers);
+
+//Or add a single common header:
+downloader.addHeader("Authorization", "Bearer " + token);
+```
+
+Set a common user agent or cookies:
+
+```java
+downloader.setUserAgent(userAgent);
+downloader.setCookies(cookies);
+```
+
+## Network
+
+```java
+boolean available = downloader.isNetworkAvailable();
+int networkType = downloader.getNetworkType();
+```
+
+Network constants:
+
+```java
+SimpleDownloader.NETWORK_TYPE_NONE
+SimpleDownloader.NETWORK_TYPE_UNKNOWN
+SimpleDownloader.NETWORK_TYPE_WIFI
+SimpleDownloader.NETWORK_TYPE_CELLULAR
+SimpleDownloader.NETWORK_TYPE_ETHERNET
+SimpleDownloader.NETWORK_TYPE_BLUETOOTH
+SimpleDownloader.NETWORK_TYPE_VPN
+SimpleDownloader.NETWORK_TYPE_USB
+SimpleDownloader.NETWORK_TYPE_ROAMING
+```
+
+By default, waiting tasks automatically resume when the network becomes available. Disable this when needed:
+
+```java
+downloader.enableResumeOnNetworkGain(false);
+```
+
+You can set Wi-Fi-only downloader too:
+
+```java
+downloader.setWifiOnly(true);
+```
+## Foreground and Notifications
+
+Run tasks using a foreground service:
+
+```java
+SimpleDownloader downloader = SimpleDownloader.builder(context)
+    .enableForeground(true)
+    .build();
+```
+Make sure declare permissions in manufast. View [Setup guide](#Setup).
+
+Notifications are disabled by default. Foreground mode automatically enables notifications.
+- Foreground mode cannot be enabled without notifications.
+- Notifications can be enabled without foreground mode.
+
+```java
+DownloadNotification notification = new DownloadNotification()
+    .setChannelId("downloads")
+    .setChannelName("Downloads")
+    .setSmallIcon(R.drawable.ic_download)
+    .setCompleteIcon(R.drawable.ic_download_done)
+    .setErrorIcon(R.drawable.ic_download_error)
+    .setColorAccent(0xFF0087E5);
+
+SimpleDownloader downloader = SimpleDownloader.builder(context)
+    .enableNotifications(true)
+    .setNotification(notification)
+    .build();
+```
+
+`DownloadNotification` configuration is optional. When notifications are enabled without a custom configuration, the default configuration is used.
+
+Available notification configuration includes:
+
+```java
+setChannelId(String channelId)
+setChannelName(String channelName)
+setChannelDescription(String channelDescription)
+setChannelImportance(int channelImportance)
+setForegroundNotificationId(int foregroundNotificationId)
+setSmallIcon(int smallIcon)
+setCompleteIcon(int completeIcon)
+setErrorIcon(int errorIcon)
+setColorAccent(int colorAccent)
+setColorAccentResource(int colorAccentRes)
+clearColorAccent()
+setColorized(boolean colorized)
+setSoundEnabled(boolean soundEnabled)
+setSound(Uri soundUri)
+setVibrationEnabled(boolean vibrationEnabled)
+setVibrationPattern(long[] vibrationPattern)
+setLockscreenVisibility(int visibility)
+setThumbnail(Bitmap bitmap)
+setThumbnailUrl(String url)
+setThumbnailUrl(String url, Map<String, String> headers)
+clearThumbnail()
+setShowThumbnail(boolean showThumbnail)
+setShowPauseAction(boolean showPauseAction)
+setShowCancelAction(boolean showCancelAction)
+setShowRetryAction(boolean showRetryAction)
+setShowCompleteNotification(boolean showCompleteNotification)
+setShowErrorNotification(boolean showErrorNotification)
+setNotificationUpdateInterval(long millis)
+```
+
+SimpleDownloader has a built-in thumbnail system for notifications. It can generate thumbnails from supported video, image, audio, APK, and PDF files.
+
+You can also set a thumbnail directly:
+
+```java
+notification.setThumbnail(bitmap);
+
+// Or load one from a URL:
+notification.setThumbnailUrl(thumbnailUrl, thumbHeaders);
+```
+Pass `null` for headers when they are not needed.
+
+## Checksums
+
+Verify the completed file with algorithms supported by `MessageDigest`, such as SHA-256, SHA-1, or MD5:
+
+```java
+DownloadRequest request = DownloadRequest.builder()
+    .setChecksum("SHA-256", expectedChecksum)
+    .setOutput(folderUri, FileName.AUTO)
+    .setFileUrl(fileUrl)
+    .build();
+```
 
 ## Error handling
 
-Failures exceptions are instance of `DownloadException`:
+Download failures are reported as `DownloadException` when the library can classify the failure:
 
 ```java
 @Override
-public void onError(long id, Uri outputUri, Exception error, DownloadTask task) {
+public void onError(Uri outputUri, Exception error) {
     if (!(error instanceof DownloadException)) return;
 
     DownloadException failure = (DownloadException) error;
@@ -752,90 +1000,156 @@ public void onError(long id, Uri outputUri, Exception error, DownloadTask task) 
 Error types:
 
 ```java
-NETWORK_LOST
-TIMEOUT
-DNS_ERROR
-SSL_ERROR
-HTTP_ERROR
-ENOSPC
-FILE_ERROR
-STORAGE_PERMISSION_DENIED
-OUTPUT_INVALID
-RANGE_NOT_SUPPORTED
-EMPTY_RESPONSE
-CHECKSUM_FAILED
-CANCELLED
-UNKNOWN
+DownloadException.Type.NETWORK_LOST
+DownloadException.Type.TIMEOUT
+DownloadException.Type.DNS_ERROR
+DownloadException.Type.SSL_ERROR
+DownloadException.Type.HTTP_ERROR
+DownloadException.Type.ENOSPC
+DownloadException.Type.FILE_ERROR
+DownloadException.Type.STORAGE_PERMISSION_DENIED
+DownloadException.Type.OUTPUT_INVALID
+DownloadException.Type.RANGE_NOT_SUPPORTED
+DownloadException.Type.EMPTY_RESPONSE
+DownloadException.Type.CHECKSUM_FAILED
+DownloadException.Type.CANCELLED
+DownloadException.Type.UNKNOWN
 ```
 
-## Other configuration
+For HTTP errors, `getCode()` contains the HTTP status code. For errors without an HTTP status, the code is not an HTTP status code.
 
-```java
-SimpleDownloader downloader = SimpleDownloader.with(context)
-    .setId(customId)
-    .setUserAgent(userAgent)
-    .setConnectTimeout(30_000)
-    .setReadTimeout(30_000)
-    .setProgressInterval(300)
-    .setBufferSize(16 * 1024)
-    .enableHistory(true)
-    .enableSorting(true);
-```
+## Custom HTTP client
 
-Custom IDs are optional. SimpleDownloader generates an ID when `setId()` is not used. An active task cannot be replaced by another task with the same ID.
-
-Passing 0 for a connection or read timeout keeps the OkHttp default.
-
-Use your own HTTP client:
+Use your own `OkHttpClient`:
 
 ```java
 OkHttpClient client = new OkHttpClient.Builder()
     .followRedirects(true)
     .build();
 
-SimpleDownloader.with(context)
-    .setHttpClient(client);
+SimpleDownloader downloader = SimpleDownloader.builder(context)
+    .setHttpClient(client)
+    .build();
 ```
 
 The HTTP client cannot be replaced while a worker is running or already scheduled.
 
-Use a custom task list order:
+## Custom task list order
+
+Use a custom comparator for the task list:
 
 ```java
-SimpleDownloader.with(context)
-    .setTaskComparator(myComparator);
+SimpleDownloader downloader = SimpleDownloader.builder(context)
+    .setTaskComparator(myComparator)
+    .build();
 ```
 
-## Formatting helpers
+Sorting is enabled by default. Disable it when needed:
+
+```java
+downloader.enableSorting(false);
+```
+
+## TaskField
+
+`TaskField` is used to tell SimpleDownloader which property of a download task you want to filter or search by.
+
+For example:
+```java
+List<DownloadTask> tasks = downloader.getTasks(TaskField.STATUS, Status.COMPLETED);
+```
+This means: get tasks whose STATUS is COMPLETED. 
+
+- field = WHAT should I check?
+- value = WHAT should it equal?
+
+Available `TaskFields`
+
+```java
+ID
+FILE_URL
+STATUS
+PRIORITY
+MIME_TYPE
+FILE_NAME
+CREATED_AT
+WIFI_ONLY
+PROGRESS
+BYTES_DOWNLOADED
+TOTAL_BYTES
+OUTPUT_URI
+OUTPUT_PATH
+OVERWRITE_URI
+OVERWRITE_PATH
+OUTPUT_FOLDER_URI
+OUTPUT_FOLDER_PATH
+SUB_FOLDER_PATH
+DELETE_ON_REMOVAL
+LOCKED_IN_QUEUE
+```
+
+## Utilities
 
 ```java
 String size = Formator.formatBytes(bytes);
 String speed = Formator.formatSpeed(bytesPerSecond);
 String eta = Formator.formatEta(etaMs);
+String ratio = Formator.formatRatio(part, total);
 ```
 
 `TypeResolver` is used internally, but it is also available for resolving file extensions and MIME types for you 🙂.
 
+```java
+String extension = TypeResolver.getExtension(fileName);
+String mime = TypeResolver.getMimeFromName(fileName);
+String mimeFromUrl = TypeResolver.getMimeFromUrl(fileUrl);
+```
+
 ## Cleanup
 
-When listeners and observers are owned by an Activity or Fragment, release them using the same owner object given to `with(...)`:
+When listeners and observers are owned by an Activity or Fragment, release them from the same downloader instance:
 
 ```java
 @Override
 protected void onDestroy() {
-    SimpleDownloader.releaseCallbacks(this);
-    SimpleDownloader.releaseObserver(observer);
+    downloader.releaseAllCallbacks();
     super.onDestroy();
 }
 ```
 
-Call `shutdown()` only when you intentionally want to stop the library and release all workers, network callbacks, HTTP resources, thumbnails, database, etc:
+You can also remove a specific listener or observer with `removeListener()` and `removeObserver()`.
+
+Call `shutdown()` only when you intentionally want to stop the downloader and release its workers, network callbacks, HTTP resources, thumbnails, and other runtime resources:
 
 ```java
-SimpleDownloader.shutdown();
+downloader.shutdown();
 ```
 
-You do not need to call `shutdown()` normally or when an Activity is destroyed.
+For the default-owner instance You can also use:
+
+```java
+SimpleDownloader.shutdownDefault();
+```
+
+You do not need to call `shutdown()` normally or when an Activity is destroyed. Do not use a shut down downloader again.
+
+## License
+
+```license
+   Copyright (C) 2026 Jeet / Jeetarc
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+```
 
 ## Support
 
