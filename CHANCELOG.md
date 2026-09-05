@@ -1,4 +1,5 @@
 ## v1.0.0
+
 Stable release of SimpleDownloader with a cleaner API, improved task management, and many more.
 
 ### Added
