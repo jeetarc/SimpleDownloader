@@ -18,15 +18,20 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.json.JSONObject;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import com.jeet.simpledownloader.util.Logs;
 
 
 class TaskDatabase extends SQLiteOpenHelper {
 	private volatile boolean mClosed = false;
 	private static final String DB_NAME = "SimpleDownloader.db";
-	private static final int VERSION = 2;
+	private static final int VERSION = 3;
 	private static final String TABLE_TASKS = "tasks";
 	
 	private static final String ID = "id";
+	private static final String OWNER_ID = "owner_id";
 	private static final String FILE_URL = "file_url";
 	private static final String OUTPUT_URI = "output_uri";
 	private static final String TREE_URI = "tree_uri";
@@ -46,7 +51,6 @@ class TaskDatabase extends SQLiteOpenHelper {
 	private static final String COOKIES = "cookies";
 	private static final String CHECKSUM_ALGORITHM = "checksum_algorithm";
 	private static final String CHECKSUM_VALUE = "checksum_value";
-	private static final String BUFFER_SIZE = "buffer_size";
 	private static final String PRIORITY = "priority";
 	private static final String WIFI_ONLY = "wifi_only";
 	private static final String STATUS = "status";
@@ -60,6 +64,13 @@ class TaskDatabase extends SQLiteOpenHelper {
 	private static final String DELETE_ON_REMOVAL = "delete_on_removal";
 	private static final String LOCKED_IN_QUEUE = "locked_in_queue";
 	private static final String CHECKSUM_FAILED = "checksum_failed";
+	
+	private static final ExecutorService DATABASE_EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactory() {
+		@Override
+		public Thread newThread(Runnable r) {
+			return new Thread(r, "SimpleDownloader-DB");
+		}
+	});
 	
 	TaskDatabase(Context context) {
 		super(context, DB_NAME, null, VERSION);
@@ -78,6 +89,10 @@ class TaskDatabase extends SQLiteOpenHelper {
 		if (oldVersion < 2) {
 			ensureColumn(db, TABLE_TASKS, MEDIA_STORE_URI, "TEXT");
 			ensureColumn(db, TABLE_TASKS, SUB_FOLDER_PATH, "TEXT");
+		}
+		
+		if (oldVersion < 3) {
+			ensureColumn(db, TABLE_TASKS, OWNER_ID, "TEXT NOT NULL DEFAULT '" + SimpleDownloader.DEFAULT_OWNER_ID + "'");
 		}
 		
 		createIndexes(db);
@@ -111,10 +126,9 @@ class TaskDatabase extends SQLiteOpenHelper {
 		COOKIES + " TEXT," +
 		CHECKSUM_ALGORITHM + " TEXT," +
 		CHECKSUM_VALUE + " TEXT," +
-		BUFFER_SIZE + " INTEGER DEFAULT 16384," +
-		PRIORITY + " INTEGER DEFAULT 2," +
+		PRIORITY + " TEXT NOT NULL," +
 		WIFI_ONLY + " INTEGER DEFAULT 0," +
-		STATUS + " INTEGER NOT NULL," +
+		STATUS + " TEXT NOT NULL," +
 		PROGRESS + " INTEGER DEFAULT 0," +
 		BYTES_DOWNLOADED + " INTEGER DEFAULT 0," +
 		TOTAL_BYTES + " INTEGER DEFAULT -1," +
@@ -124,7 +138,8 @@ class TaskDatabase extends SQLiteOpenHelper {
 		UPDATED_AT + " INTEGER NOT NULL," +
 		DELETE_ON_REMOVAL + " INTEGER DEFAULT 0," +
 		LOCKED_IN_QUEUE + " INTEGER DEFAULT 0," +
-		CHECKSUM_FAILED + " INTEGER DEFAULT 0" +
+		CHECKSUM_FAILED + " INTEGER DEFAULT 0," +
+		OWNER_ID + " TEXT NOT NULL DEFAULT '" + SimpleDownloader.DEFAULT_OWNER_ID + "'" +
 		")");
 	}
 	
@@ -132,6 +147,7 @@ class TaskDatabase extends SQLiteOpenHelper {
 		db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_status ON " + TABLE_TASKS + "(" + STATUS + ")");
 		db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON " + TABLE_TASKS + "(" + PRIORITY + ")");
 		db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_mime_type ON " + TABLE_TASKS + "(" + MIME_TYPE + ")");
+		db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_owner_id ON " + TABLE_TASKS + "(" + OWNER_ID + ")");
 	}
 	
 	private void ensureColumn(SQLiteDatabase db, String table, String column, String type) {
@@ -140,121 +156,192 @@ class TaskDatabase extends SQLiteOpenHelper {
 			while (c.moveToNext()) {
 				if (column.equals(c.getString(c.getColumnIndexOrThrow("name")))) return;
 			}
-		} finally {
-			c.close();
-		}
+		} finally { c.close(); }
 		db.execSQL("ALTER TABLE " + table + " ADD COLUMN " + column + " " + type);
 	}
 	
-	void saveTask(DownloadTask task, Status status) {
-		if (task == null || mClosed) return;
-		getWritableDatabase().insertWithOnConflict(TABLE_TASKS, null, toValues(task, status), SQLiteDatabase.CONFLICT_REPLACE);
+	boolean hasUnfinishedTask(long id) {
+		if (mClosed) return false;
+		Cursor cursor = getReadableDatabase().query(TABLE_TASKS,
+		new String[]{
+			STATUS
+		}, ID + "=?",
+		new String[]{
+			String.valueOf(id)
+		}, null, null, null, "1");
+		
+		try {
+			if (!cursor.moveToFirst()) return false;
+			Status status = Status.fromDatabaseValue(getString(cursor, STATUS));
+			return !status.isFinished();
+			
+		} finally { cursor.close(); }
 	}
 	
-	void updateTaskData(long id, ContentValues values) {
+	void saveTask(DownloadTask task) {
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				if (task == null || mClosed) return;
+				getWritableDatabase().insertWithOnConflict(TABLE_TASKS, null, toValues(task), SQLiteDatabase.CONFLICT_REPLACE);
+			}
+		});
+	}
+	
+	private void updateTaskData(long id, ContentValues values) {
 		if (values == null || mClosed) return;
 		if (!values.containsKey(UPDATED_AT)) values.put(UPDATED_AT, System.currentTimeMillis());
 		getWritableDatabase().update(TABLE_TASKS, values, ID + "=?", new String[]{String.valueOf(id)});
 	}
 	
 	void updateStatus(long id, Status status, long bytesDownloaded, int progress) {
-		ContentValues values = new ContentValues();
-		values.put(STATUS, status == null ? Status.PAUSED.getCode() : status.getCode());
-		values.put(PROGRESS, progress);
-		values.put(BYTES_DOWNLOADED, bytesDownloaded);
-		values.put(UPDATED_AT, System.currentTimeMillis());
-		updateTaskData(id, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				ContentValues values = new ContentValues();
+				values.put(STATUS, status.name());
+				values.put(PROGRESS, progress);
+				values.put(BYTES_DOWNLOADED, bytesDownloaded);
+				values.put(UPDATED_AT, System.currentTimeMillis());
+				updateTaskData(id, values);
+			}
+		});
 	}
 	
 	void updateResumeData(long id, long bytesDownloaded, long totalBytes, int progress, String eTag, String lastModified) {
-		ContentValues values = new ContentValues();
-		values.put(BYTES_DOWNLOADED, bytesDownloaded);
-		values.put(TOTAL_BYTES, totalBytes);
-		values.put(PROGRESS, progress);
-		values.put(ETAG, eTag);
-		values.put(LAST_MODIFIED, lastModified);
-		values.put(UPDATED_AT, System.currentTimeMillis());
-		updateTaskData(id, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				ContentValues values = new ContentValues();
+				values.put(BYTES_DOWNLOADED, bytesDownloaded);
+				values.put(TOTAL_BYTES, totalBytes);
+				values.put(PROGRESS, progress);
+				values.put(ETAG, eTag);
+				values.put(LAST_MODIFIED, lastModified);
+				values.put(UPDATED_AT, System.currentTimeMillis());
+				updateTaskData(id, values);
+			}
+		});
 	}
 	
 	void updateOutputUri(long id, Uri outputUri) {
-		ContentValues values = new ContentValues();
-		values.put(OUTPUT_URI, outputUri != null ? outputUri.toString() : null);
-		values.put(UPDATED_AT, System.currentTimeMillis());
-		updateTaskData(id, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				ContentValues values = new ContentValues();
+				values.put(OUTPUT_URI, outputUri != null ? outputUri.toString() : null);
+				values.put(UPDATED_AT, System.currentTimeMillis());
+				updateTaskData(id, values);
+			}
+		});
 	}
 	
 	void updateOutputFileName(long id, String outputName) {
-		ContentValues values = new ContentValues();
-		values.put(OUTPUT_FILE_NAME, outputName);
-		values.put(UPDATED_AT, System.currentTimeMillis());
-		updateTaskData(id, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				ContentValues values = new ContentValues();
+				values.put(OUTPUT_FILE_NAME, outputName);
+				values.put(UPDATED_AT, System.currentTimeMillis());
+				updateTaskData(id, values);
+			}
+		});
 	}
 	
 	void updateOutputData(DownloadTask task) {
-		if (task == null) return;
-		ContentValues values = new ContentValues();
-		values.put(OUTPUT_URI, task.mOutputUri != null ? task.mOutputUri.toString() : null);
-		values.put(OUTPUT_FILE_NAME, task.mOutputName != null ? task.mOutputName : null);
-		values.put(OUTPUT_PATH, task.mOutputPath);
-		values.put(UPDATED_AT, System.currentTimeMillis());
-		updateTaskData(task.mId, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				if (task == null) return;
+				ContentValues values = new ContentValues();
+				values.put(OUTPUT_URI, task.mOutputUri != null ? task.mOutputUri.toString() : null);
+				values.put(OUTPUT_FILE_NAME, task.mOutputName != null ? task.mOutputName : null);
+				values.put(OUTPUT_PATH, task.mOutputPath);
+				values.put(UPDATED_AT, System.currentTimeMillis());
+				updateTaskData(task.mId, values);
+			}
+		});
 	}
 	
 	void updateResolvedMetadata(DownloadTask task) {
 		if (task == null) return;
-		ContentValues values = new ContentValues();
-		values.put(FILE_NAME, task.mFileName);
-		values.put(FILE_NAME_MODE, task.mFileNameMode != null ? task.mFileNameMode.name() : null);
-		values.put(MIME_TYPE, task.mMimeType);
-		values.put(MIME_TYPE_MODE, task.mMimeTypeMode != null ? task.mMimeTypeMode.name() : null);
-		updateTaskData(task.mId, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				if (task == null) return;
+				ContentValues values = new ContentValues();
+				values.put(FILE_NAME, task.mFileName);
+				values.put(FILE_NAME_MODE, task.mFileNameMode != null ? task.mFileNameMode.name() : null);
+				values.put(MIME_TYPE, task.mMimeType);
+				values.put(MIME_TYPE_MODE, task.mMimeTypeMode != null ? task.mMimeTypeMode.name() : null);
+				updateTaskData(task.mId, values);
+			}
+		});
 	}
 	
 	void updateWifiOnly(long id, boolean enable) {
-		ContentValues values = new ContentValues();
-		values.put(WIFI_ONLY, enable ? 1 : 0);
-		updateTaskData(id, values);
-	}
-	
-	void updatePriority(long id, Priority priority) {
-		ContentValues values = new ContentValues();
-		values.put(PRIORITY, priority == null ? Priority.NORMAL.getWeight() : priority.getWeight());
-		updateTaskData(id, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				ContentValues values = new ContentValues();
+				values.put(WIFI_ONLY, enable ? 1 : 0);
+				updateTaskData(id, values);
+			}
+		});
 	}
 	
 	void updateLockedInQueue(long id, boolean enable) {
-		ContentValues values = new ContentValues();
-		values.put(LOCKED_IN_QUEUE, enable ? 1 : 0);
-		updateTaskData(id, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				ContentValues values = new ContentValues();
+				values.put(LOCKED_IN_QUEUE, enable ? 1 : 0);
+				updateTaskData(id, values);
+			}
+		});
 	}
 	
 	void updateDeleteOnRemoval(long id, boolean enable) {
-		ContentValues values = new ContentValues();
-		values.put(DELETE_ON_REMOVAL, enable ? 1 : 0);
-		updateTaskData(id, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				ContentValues values = new ContentValues();
+				values.put(DELETE_ON_REMOVAL, enable ? 1 : 0);
+				updateTaskData(id, values);
+			}
+		});
 	}
 	
 	void updateChecksumFailed(long id, boolean failed) {
-		ContentValues values = new ContentValues();
-		values.put(CHECKSUM_FAILED, failed ? 1 : 0);
-		updateTaskData(id, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				ContentValues values = new ContentValues();
+				values.put(CHECKSUM_FAILED, failed ? 1 : 0);
+				updateTaskData(id, values);
+			}
+		});
 	}
 	
 	void clearFinishedInternalData(long id) {
-		if (mClosed) return;
-		ContentValues values = new ContentValues();
-		values.putNull(ETAG);
-		values.putNull(LAST_MODIFIED);
-		values.putNull(CHECKSUM_ALGORITHM);
-		values.putNull(CHECKSUM_VALUE);
-		values.putNull(FILE_NAME_MODE);
-		values.putNull(MIME_TYPE_MODE);
-		values.put(CHECKSUM_FAILED, 0);
-		updateTaskData(id, values);
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				if (mClosed) return;
+				ContentValues values = new ContentValues();
+				values.putNull(ETAG);
+				values.putNull(LAST_MODIFIED);
+				values.putNull(CHECKSUM_ALGORITHM);
+				values.putNull(CHECKSUM_VALUE);
+				values.putNull(FILE_NAME_MODE);
+				values.putNull(MIME_TYPE_MODE);
+				values.put(CHECKSUM_FAILED, 0);
+				updateTaskData(id, values);
+			}
+		});
 	}
 	
-	private ContentValues toValues(DownloadTask task, Status saveStatus) {
+	private ContentValues toValues(DownloadTask task) {
 		long now = System.currentTimeMillis();
 		ContentValues values = new ContentValues();
 		values.put(ID, task.mId);
@@ -277,10 +364,9 @@ class TaskDatabase extends SQLiteOpenHelper {
 		values.put(COOKIES, task.mCookies);
 		values.put(CHECKSUM_ALGORITHM, task.mChecksumAlgorithm);
 		values.put(CHECKSUM_VALUE, task.mChecksumValue);
-		values.put(BUFFER_SIZE, task.mBufferSize);
-		values.put(PRIORITY, task.mPriority.getWeight());
+		values.put(PRIORITY, task.mPriority.name());
 		values.put(WIFI_ONLY, task.mWifiOnly ? 1 : 0);
-		values.put(STATUS, saveStatus == null ? task.status.getCode() : saveStatus.getCode());
+		values.put(STATUS, task.status.name());
 		values.put(PROGRESS, task.mProgress);
 		values.put(BYTES_DOWNLOADED, task.mBytesDownloaded);
 		values.put(TOTAL_BYTES, task.mTotalBytes);
@@ -291,6 +377,7 @@ class TaskDatabase extends SQLiteOpenHelper {
 		values.put(DELETE_ON_REMOVAL, task.mDeleteOnRemoval ? 1 : 0);
 		values.put(LOCKED_IN_QUEUE, task.mLockedInQueue ? 1 : 0);
 		values.put(CHECKSUM_FAILED, task.mChecksumFailed ? 1 : 0);
+		values.put(OWNER_ID, task.mOwnerId);
 		return values;
 	}
 	
@@ -303,7 +390,7 @@ class TaskDatabase extends SQLiteOpenHelper {
 		state.overwriteUri = getString(c, OVERWRITE_URI);
 		state.mediaStoreUri = getString(c, MEDIA_STORE_URI);
 		state.outputFolderPath = getString(c, OUTPUT_FOLDER_PATH);
-        state.subFolderPath = getString(c, SUB_FOLDER_PATH);
+		state.subFolderPath = getString(c, SUB_FOLDER_PATH);
 		state.overwritePath = getString(c, OVERWRITE_PATH);
 		state.outputPath = getString(c, OUTPUT_PATH);
 		state.outputName = getString(c, OUTPUT_FILE_NAME);
@@ -316,7 +403,6 @@ class TaskDatabase extends SQLiteOpenHelper {
 		state.cookies = getString(c, COOKIES);
 		state.checksumAlgorithm = getString(c, CHECKSUM_ALGORITHM);
 		state.checksumValue = getString(c, CHECKSUM_VALUE);
-		state.bufferSize = getInt(c, BUFFER_SIZE, 16384);
 		state.priority = Priority.fromDatabaseValue(getString(c, PRIORITY));
 		state.wifiOnly = getBoolean(c, WIFI_ONLY, false);
 		state.status = Status.fromDatabaseValue(getString(c, STATUS));
@@ -330,35 +416,28 @@ class TaskDatabase extends SQLiteOpenHelper {
 		state.deleteOnRemoval = getBoolean(c, DELETE_ON_REMOVAL, false);
 		state.lockedInQueue = getBoolean(c, LOCKED_IN_QUEUE, false);
 		state.checksumFailed = getBoolean(c, CHECKSUM_FAILED, false);
+		state.ownerId = getString(c, OWNER_ID);
 		return state;
 	}
 	
 	void removeTask(long id) {
-		if (mClosed) return;
-		getWritableDatabase().delete(TABLE_TASKS, ID + "=?", new String[]{String.valueOf(id)});
+		deleteForTask(id);
 	}
 	
-	void removeAllTasks() {
-		if (mClosed) return;
-		getWritableDatabase().delete(TABLE_TASKS, null, null);
+	
+	List<TaskState> loadTaskStatesForOwner(String ownerId) {
+		if (mClosed) return new ArrayList<TaskState>();
+		return queryTaskStates(OWNER_ID + "=?", new String[]{ownerId}, CREATED_AT + " ASC", null);
 	}
 	
-	<T> List<TaskState> loadTaskStates(TaskField<T> field, T value) {
+	<T> List<TaskState> loadTaskStatesForOwner(String ownerId, TaskField<T> field, T value) {
 		if (mClosed) return new ArrayList<TaskState>();
 		FieldQuery query = createFieldQuery(field, value);
-		return queryTaskStates(query.selection, query.args, CREATED_AT + " ASC", null);
-	}
-	
-	<T> TaskState loadLatestTaskState(TaskField<T> field, T value) {
-		if (mClosed) return null;
-		FieldQuery query = createFieldQuery(field, value);
-		List<TaskState> states = queryTaskStates(query.selection, query.args, CREATED_AT + " DESC", "1");
-		return states.isEmpty() ? null : states.get(0);
-	}
-	
-	List<TaskState> loadAllTaskStates() {
-		if (mClosed) return new ArrayList<TaskState>();
-		return queryTaskStates(null, null, CREATED_AT + " ASC", null);
+		String selection = "(" + OWNER_ID + "=? AND " + query.selection + ")";
+		String[] args = new String[1 + (query.args == null ? 0 : query.args.length)];
+		args[0] = ownerId;
+		if (query.args != null) System.arraycopy(query.args, 0, args, 1, query.args.length);
+		return queryTaskStates(selection, args, CREATED_AT + " ASC", null);
 	}
 	
 	private List<TaskState> queryTaskStates(String selection, String[] args, String orderBy, String limit) {
@@ -367,7 +446,9 @@ class TaskDatabase extends SQLiteOpenHelper {
 		Cursor cursor = getReadableDatabase().query(TABLE_TASKS, null, selection, args, null, null, orderBy, limit);
 		
 		try {
-			while (cursor.moveToNext()) tasks.add(fromCursor(cursor));
+			while (cursor.moveToNext()) {
+				tasks.add(fromCursor(cursor));
+			}
 		} finally {
 			cursor.close();
 		}
@@ -377,11 +458,7 @@ class TaskDatabase extends SQLiteOpenHelper {
 	
 	private static <T> FieldQuery createFieldQuery(TaskField<T> field, T value) {
 		if (field == null) throw new IllegalArgumentException("TaskField cannot be null.");
-		if (value == null) return new FieldQuery(field.column + " IS NULL", null);
-		
-		if (!field.type.isInstance(value)) {
-			throw new IllegalArgumentException("Expected " + field.type.getSimpleName() + " for field " + field.column + ", but received " + value.getClass().getSimpleName() + ".");
-		}
+		field.validateValue(value);
 		
 		switch (field.valueType) {
 			case BOOLEAN:
@@ -392,27 +469,37 @@ class TaskDatabase extends SQLiteOpenHelper {
 			
 			case STATUS:
 			Status status = (Status) value;
-			return new FieldQuery("(" + field.column + "=? OR " + field.column + "=?)",
-			new String[] {
-				String.valueOf(status.getCode()),
+			return new FieldQuery(field.column + "=?",
+			new String[]{
 				status.name()
 			});
 			
 			case PRIORITY:
 			Priority priority = (Priority) value;
-			return new FieldQuery("(" + field.column + "=? OR " + field.column + "=?)",
-			new String[] {
-				String.valueOf(priority.getWeight()),
+			return new FieldQuery(
+			field.column + "=?",
+			new String[]{
 				priority.name()
 			});
 			
 			case NORMAL:
-			default:
-			return new FieldQuery(field.column + "=?",
+			default: return new FieldQuery(field.column + "=?",
 			new String[] {
 				String.valueOf(value)
 			});
 		}
+	}
+	
+	private void executeWrite(final Runnable operation) {
+		if (operation == null || mClosed) return;
+		
+		DATABASE_EXECUTOR.execute(new Runnable() {
+			@Override
+			public void run() {
+				if (mClosed) return;
+				operation.run();
+			}
+		});
 	}
 	
 	static String headersToJson(Map<String, String> headers) {
@@ -421,7 +508,10 @@ class TaskDatabase extends SQLiteOpenHelper {
 			if (headers != null) for (Map.Entry<String, String> e : headers.entrySet()) obj.put(e.getKey(), e.getValue());
 			return obj.toString();
 			
-		} catch (Exception e) { return "{}"; }
+		} catch (Exception e) {
+			Logs.err("Unable to convert headers from Map to JSON.", e);
+			return "{}"; 
+		}
 	}
 	
 	static Map<String, String> headersFromJson(String json) {
@@ -436,8 +526,58 @@ class TaskDatabase extends SQLiteOpenHelper {
 				map.put(key, obj.getString(key));
 			}
 			
-		} catch (Exception ignored) {}
+		} catch (Exception e) {
+			Logs.err("Unable to convert headers from JSON to Map.", e);
+		}
 		return map;
+	}
+	
+	void deleteForTask(long taskId) {
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				if (mClosed) return;
+				getWritableDatabase().delete(TABLE_TASKS, ID + "=?", new String[]{String.valueOf(taskId)});
+			}
+		});
+	}
+	
+	void deleteForOwner(String ownerId) {
+		if (ownerId == null) return;
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				if (mClosed) return;
+				getWritableDatabase().delete(TABLE_TASKS, OWNER_ID + "=?", new String[]{ownerId});
+			}
+		});
+	}
+	
+	void deleteForDefaultOwner() {
+		deleteForOwner(SimpleDownloader.DEFAULT_OWNER_ID);
+	}
+	
+	void deleteForAll() {
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				if (mClosed) return;
+				getWritableDatabase().delete(TABLE_TASKS, null, null);
+			}
+		});
+	}
+	
+	void resetTasksTable() {
+		executeWrite(new Runnable() {
+			@Override
+			public void run() {
+				if (mClosed) return;
+                SQLiteDatabase db = getWritableDatabase();
+				db.execSQL("DROP TABLE IF EXISTS " + TABLE_TASKS);
+				createTasksTable(db);
+				createIndexes(db);
+			}
+		});
 	}
 	
 	private static String getString(Cursor c, String column) {
@@ -480,4 +620,3 @@ class TaskDatabase extends SQLiteOpenHelper {
 		}
 	}
 }
-
