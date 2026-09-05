@@ -49,10 +49,12 @@ Use `SimpleDownloader.builder(context)` and `DownloadRequest.builder()` for more
 
 Move from the beta listener API to the stable APIs:
 
-```java
-DownloadTask.Listener
-SimpleDownloader.Listener
-```
+Beta: 
+- `DownloadListener`
+
+Stable:
+- `DownloadTask.Listener`
+- `SimpleDownloader.Listener`
 
 #### 4. Read README for more:
 https://github.com/jeetarc/SimpleDownloader/blob/main/README.md
