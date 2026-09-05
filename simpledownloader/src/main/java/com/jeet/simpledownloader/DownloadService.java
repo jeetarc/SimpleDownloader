@@ -259,7 +259,8 @@ public final class DownloadService extends Service {
 		
 		return START_NOT_STICKY;
 	}
-	
+
+	@Override
 	public void onTimeout(int startId, int fgsType) {
 		handleForegroundTimeout(startId);
 	}
