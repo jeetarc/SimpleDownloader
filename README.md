@@ -75,11 +75,12 @@ If you enable `enableForeground(true)`, also add:
 ```
 Foreground mode automatically enables notifications. You can also use `enableNotifications(true)` without foreground mode.
 
-If using normal file path, add:
+If using normal filesystem path, add:
 ``` XML
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 ```
-Request the permission at runtime.
+and request the permission at runtime.
 Storage permissions are not required when saving to an app-specific folder or using folderUri via MediaStore or Storage Access Framework.
 
 > All other required permissions and components are added by default.
@@ -208,7 +209,7 @@ Available `SimpleDownloader.Builder` settings:
 .setRetryPolicy(RetryPolicy retryPolicy)
 .enableResumeOnNetworkGain(boolean enable)
 .setAutoRestore(boolean enable)
-restoreTasks()
+.restoreTasks()
 .restoreTasks(TaskField<?> field, Object value)
 .enableSorting(boolean enable)
 .setTaskComparator(Comparator<DownloadTask> comparator)
@@ -372,7 +373,7 @@ Available request settings:
 More:
 - [Authorize via headers, cookies](#Authorization)
 - [Set Subfolder](#Subfolder)
-- [FileName and MimeType modes](#`FileName`-and-`MimeType`-modes)
+- [FileName and MimeType modes](#FileName-and-MimeType-modes)
 - [Explicit MIME Type](#MIME-Type)
 
 
@@ -788,7 +789,7 @@ Resolve the MIME type from the final file name only:
 .setMimeType(MimeType.FROM_NAME)
 ```
 
-## `FileName` and `MimeType` modes
+## FileName and MimeType modes
 
 ```java
 FileName.AUTO
