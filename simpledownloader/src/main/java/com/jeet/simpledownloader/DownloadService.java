@@ -15,20 +15,19 @@ import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.IBinder;
-import android.util.Log;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import okhttp3.Call;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import com.jeet.simpledownloader.util.Formator;
 import com.jeet.simpledownloader.thumbnail.ThumbLoader;
-import okhttp3.Call;
-
+import com.jeet.simpledownloader.util.Logs;
 
 /**
 * DownloadService is used internally for notifications and foreground execution.
@@ -61,11 +60,8 @@ public final class DownloadService extends Service {
 		task.mNotificationDismissed = false;
 		DownloadService service = runningService;
 		
-		if (service != null) {
-			service.handleLifecycleStarted(task);
-		} else {
-			startServiceForTask(task, ACTION_ATTACH_LIFECYCLE);
-		}
+		if (service != null) service.handleLifecycleStarted(task);
+		else startServiceForTask(task, ACTION_ATTACH_LIFECYCLE);
 	}
 	
 	static void onTaskBecameActive(DownloadTask task) {
@@ -74,11 +70,8 @@ public final class DownloadService extends Service {
 		task.mNotificationDismissed = false;
 		DownloadService service = runningService;
 		
-		if (service != null) {
-			service.handleBecameActive(task);
-		} else {
-			startServiceForTask(task, ACTION_ATTACH_ACTIVE);
-		}
+		if (service != null) service.handleBecameActive(task);
+		else startServiceForTask(task, ACTION_ATTACH_ACTIVE);
 	}
 	
 	static void onTaskProgress(final DownloadTask task) {
@@ -116,13 +109,14 @@ public final class DownloadService extends Service {
 			try {
 				Context app = task.mContext.getApplicationContext();
 				NotificationManager manager = (NotificationManager) app.getSystemService(Context.NOTIFICATION_SERVICE);
-				
 				if (manager != null) {
 					DownloadNotification notification = task.mNotification == null ? new DownloadNotification() : task.mNotification;
 					NotificationBuilder builder = new NotificationBuilder(app, notification);
 					manager.cancel(builder.finishedNotificationId(task.mId));
 				}
-			} catch (Throwable ignored) {}
+			} catch (Throwable thr) {
+				Logs.err("Unable to perform retry.", thr);
+			}
 		}
 		
 		DownloadService service = runningService;
@@ -181,6 +175,12 @@ public final class DownloadService extends Service {
 		}
 	}
 	
+	static void onDownloaderShutdown(SimpleDownloader downloader) {
+		DownloadService service = runningService;
+		if (service == null || downloader == null) return;
+		service.handleDownloaderShutdown(downloader);
+	}
+	
 	private static void startServiceForTask(DownloadTask task, String action) {
 		if (task == null || task.mContext == null || !task.mDownloader.areNotificationsEnabled()) return;
 		Context app = task.mContext.getApplicationContext();
@@ -190,13 +190,10 @@ public final class DownloadService extends Service {
 		boolean foreground = task.mDownloader.isForegroundEnabled() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O;
 		
 		try {
-			if (foreground) {
-				app.startForegroundService(intent);
-			} else {
-				app.startService(intent);
-			}
+			if (foreground) app.startForegroundService(intent);
+			else app.startService(intent);
 		} catch (RuntimeException error) {
-			Log.e(TAG, "Unable to start DownloadService: " + error.toString());
+			Logs.err("Unable to start DownloadService.", error);
 		}
 	}
 	
@@ -263,7 +260,6 @@ public final class DownloadService extends Service {
 		return START_NOT_STICKY;
 	}
 	
-	@Override
 	public void onTimeout(int startId, int fgsType) {
 		handleForegroundTimeout(startId);
 	}
@@ -295,11 +291,22 @@ public final class DownloadService extends Service {
 	
 	private DownloadTask findTask(long taskId) {
 		if (taskId < 0) return null;
-		SimpleDownloader downloader = SimpleDownloader.defaultDownloaderOrNull();
-		if (downloader == null || SimpleDownloader.taskManager == null) return null;
-		synchronized (downloader.mLock) {
-			return SimpleDownloader.taskManager.getTask(taskId);
+		return SimpleDownloader.findTaskAcrossInstances(taskId);
+	}
+	
+	private void handleDownloaderShutdown(SimpleDownloader downloader) {
+		if (downloader == null) return;
+		for (Long id : new ArrayList<Long>(foregroundTasks)) {
+			DownloadTask task = findTask(id.longValue());
+			if (task == null || task.mDownloader == downloader) foregroundTasks.remove(id);
 		}
+		
+		for (Long id : new ArrayList<Long>(groupTasks)) {
+			DownloadTask task = findTask(id.longValue());
+			if (task == null || task.mDownloader == downloader) groupTasks.remove(id);
+		}
+		
+		refreshSummary();
 	}
 	
 	private NotificationBuilder createBuilder(DownloadTask task) {
@@ -361,7 +368,8 @@ public final class DownloadService extends Service {
 			try {
 				call = task.mDownloader.httpEngine.newThumbnailCall(task, notification.thumbnailUrl, notification.thumbnailHeaders);
 				task.mThumbnailCall = call;
-			} catch (Throwable ignored) {
+			} catch (Throwable thr) {
+				Logs.err("Unable prepare configured thumbnails.", thr);
 				return;
 			}
 		}
@@ -393,12 +401,13 @@ public final class DownloadService extends Service {
 				}
 			});
 			
-		} catch (Throwable ignored) {
+		} catch (Throwable thr) {
 			synchronized (task) {
 				if (task.mThumbnailCall == call) task.mThumbnailCall = null;
 			}
 			
 			loader.cancelUrl(call);
+			Logs.err("Unable prepare configured thumbnails.", thr);
 		}
 	}
 	
@@ -409,7 +418,7 @@ public final class DownloadService extends Service {
 	}
 	
 	private void handleProgress(DownloadTask task) {
-        if (!task.isActive()) return;
+		if (!task.isActive()) return;
 		if (!isNotificationAllowed(task)) return;
 		if (task.mNotificationDismissed) return;
 		
@@ -433,7 +442,7 @@ public final class DownloadService extends Service {
 		if (!isNotificationAllowed(task)) return;
 		task.mNotificationDismissed = false;
 		if (!groupTasks.contains(task.mId)) addToGroup(task);
-        String text = "Resuming • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
+		String text = "Resuming • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
 		postProgressNotification(task, text, speedSubText(task), task.mProgress, false, false, true);
 	}
 	
@@ -450,10 +459,7 @@ public final class DownloadService extends Service {
 		if (!isNotificationAllowed(task)) return;
 		cancelFinished(task.mId);
 		if (task.mNotificationDismissed) return;
-		
-		if (!groupTasks.contains(task.mId)) {
-			addToGroup(task);
-		}
+		if (!groupTasks.contains(task.mId)) addToGroup(task);
 		
 		String text = "Retrying..";
 		int maxRetry = task.mMaxRetryCount;
@@ -680,9 +686,7 @@ public final class DownloadService extends Service {
 			tryStartForeground(summary);
 		} else {
 			tryStopForeground(true);
-			if (notificationBuilder.groupAllowed()) {
-				postNotification(notificationBuilder.summaryNotificationId(), summary);
-			}
+			if (notificationBuilder.groupAllowed()) postNotification(notificationBuilder.summaryNotificationId(), summary);
 		}
 	}
 	
@@ -694,15 +698,13 @@ public final class DownloadService extends Service {
 		}
 		
 		try {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-				startForeground(notificationBuilder.summaryNotificationId(), summary, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
-			} else {
-				startForeground(notificationBuilder.summaryNotificationId(), summary);
-			}
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(notificationBuilder.summaryNotificationId(), summary, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+			else startForeground(notificationBuilder.summaryNotificationId(), summary);
 			foregroundStarted = true;
+			
 		} catch (RuntimeException error) {
 			foregroundStarted = false;
-			Log.e(TAG, "Unable to start foreground service: " + error.toString());
+			Logs.err("Unable to start foreground service.", error);
 			stopSelf();
 		}
 	}
@@ -711,7 +713,9 @@ public final class DownloadService extends Service {
 		if (!foregroundStarted) return;
 		try {
 			stopForeground(removeNotification);
-		} catch (Throwable ignored) {}
+		} catch (Throwable thr) {
+			Logs.err("Unable to stop foreground service.", thr);
+		}
 		foregroundStarted = false;
 	}
 	
@@ -739,7 +743,7 @@ public final class DownloadService extends Service {
 		try {
 			notificationManager.notify(id, notification);
 		} catch (RuntimeException error) {
-			Log.e(TAG, "Unable to post notification: " + error.toString());
+			Logs.err("Unable to post notifications.", error);
 		}
 	}
 	
@@ -752,6 +756,8 @@ public final class DownloadService extends Service {
 		
 		try {
 			notificationExecutor.execute(work);
-		} catch (RejectedExecutionException ignored) {}
+		} catch (RejectedExecutionException e) {
+			Logs.err("Notification execution rejected.", e);
+		}
 	}
 }

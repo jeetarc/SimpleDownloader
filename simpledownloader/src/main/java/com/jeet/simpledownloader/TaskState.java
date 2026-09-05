@@ -11,6 +11,7 @@ import java.util.Map;
 
 final class TaskState {
 	long id;
+	String ownerId;
 	String fileUrl;
 	String outputUri;
 	String treeUri;
@@ -31,7 +32,6 @@ final class TaskState {
 	String checksumAlgorithm;
 	String checksumValue;
 	int maxRetryCount;
-	int bufferSize;
 	Priority priority = Priority.NORMAL;
 	boolean wifiOnly;
 	Status status = Status.PAUSED;
