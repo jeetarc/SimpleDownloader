@@ -3,7 +3,7 @@
 [![JitPack](https://jitpack.io/v/jeetarc/SimpleDownloader.svg)](https://jitpack.io/#jeetarc/SimpleDownloader)
 [![GitHub release](https://img.shields.io/github/v/release/jeetarc/SimpleDownloader?include_prereleases)](https://github.com/jeetarc/SimpleDownloader/releases)
 ![Android API](https://img.shields.io/badge/Android-API%2021%2B-3DDC84?logo=android&logoColor=white)
-[![License](https://shields.io)](https://opensource.org)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 SimpleDownloader is an Android download library. It handles the parts that usually make downloading difficult: queues, concurrent downloads, pause and resume, unstable networks, scoped storage, task persistence, foreground, notifications, progress updates, etc.
 
