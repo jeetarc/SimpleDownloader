@@ -69,11 +69,7 @@ public class DownloadException extends IOException {
 	public String toString() {
 		String message = getMessage();
 		String displayType = type != null ? type.name() : Type.UNKNOWN.name();
-		
-		if (message == null || message.length() == 0) {
-			return getClass().getName() + ": (" + displayType + ")";
-		}
-		
+		if (message == null || message.length() == 0) return getClass().getName() + ": (" + displayType + ")";
 		return getClass().getName() + ": (" + displayType + ") " + message;
 	}
 	
@@ -167,27 +163,12 @@ public class DownloadException extends IOException {
 	
 	static final class HttpStatus {
 		private static final Map<Integer, String> FULL = new HashMap<>();
-		
+		private HttpStatus() {}
+            
 		static {
-			FULL.put(100, "100 Continue: The server received the initial request headers and is waiting for the remaining request body.");
-			FULL.put(101, "101 Switching Protocols: The server is changing to a different protocol as requested by the client.");
-			FULL.put(102, "102 Processing: The server has accepted the request and is still processing it.");
-			FULL.put(103, "103 Early Hints: The server sends preliminary headers before the final response.");
-			FULL.put(200, "200 OK: The request completed successfully.");
-			FULL.put(201, "201 Created: A new resource was successfully created on the server.");
-			FULL.put(202, "202 Accepted: The request was accepted but processing has not finished yet.");
-			FULL.put(203, "203 Non-Authoritative Information: The returned data was modified by a proxy or intermediary.");
-			FULL.put(204, "204 No Content: The request succeeded but no content was returned.");
-			FULL.put(205, "205 Reset Content: The client should reset the current view or form.");
-			FULL.put(206, "206 Partial Content: The server returned only part of the requested data.");
-			FULL.put(207, "207 Multi-Status: Multiple status values are returned for different operations.");
-			FULL.put(208, "208 Already Reported: The resource has already been listed in a previous response.");
-			FULL.put(226, "226 IM Used: The server fulfilled the request using instance manipulation.");
 			FULL.put(300, "300 Multiple Choices: Multiple possible resources are available for the request.");
 			FULL.put(301, "301 Moved Permanently: The requested resource has permanently moved to another URL.");
 			FULL.put(302, "302 Found: The resource temporarily exists at a different URL.");
-			FULL.put(303, "303 See Other: The response should be retrieved from another URL using GET.");
-			FULL.put(304, "304 Not Modified: The resource has not changed since the last request.");
 			FULL.put(305, "305 Use Proxy: Access to the resource requires a proxy server.");
 			FULL.put(306, "306 Switch Proxy: This status code is no longer used.");
 			FULL.put(307, "307 Temporary Redirect: The request should be repeated at another temporary URL.");
@@ -196,7 +177,7 @@ public class DownloadException extends IOException {
 			FULL.put(401, "401 Unauthorized: Authentication is required to access this resource.");
 			FULL.put(402, "402 Payment Required: Access requires payment.");
 			FULL.put(403, "403 Forbidden: The server denied access to the requested resource.");
-			FULL.put(404, "404 Not Found: The requested page or resource could not be found.");
+			FULL.put(404, "404 Not Found: The requested resource could not be found.");
 			FULL.put(405, "405 Method Not Allowed: The HTTP method used is not allowed for this resource.");
 			FULL.put(406, "406 Not Acceptable: The requested response format is unavailable.");
 			FULL.put(407, "407 Proxy Authentication Required: Authentication with a proxy server is required.");
@@ -233,8 +214,6 @@ public class DownloadException extends IOException {
 			FULL.put(510, "510 Not Extended: Additional request extensions are required.");
 			FULL.put(511, "511 Network Authentication Required: Network authentication is required before access.");
 		}
-		
-		private HttpStatus() {}
 		
 		static String getFullMessage(int code) {
 			String message = FULL.get(code);
