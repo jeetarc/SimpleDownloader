@@ -14,6 +14,7 @@ import android.net.NetworkRequest;
 import android.os.Build;
 import java.util.ArrayList;
 import java.util.List;
+import com.jeet.simpledownloader.util.Logs;
 
 
 final class NetworkManager {
@@ -169,7 +170,9 @@ final class NetworkManager {
 		if (connectivityManager != null && networkCallback != null) {
 			try {
 				connectivityManager.unregisterNetworkCallback(networkCallback);
-			} catch (Exception ignored) {}
+			} catch (Exception e) {
+                Logs.warn("Failed to unregister network callbacks.", e);
+            }
 			networkCallback = null;
 		}
 	}
@@ -251,9 +254,9 @@ final class NetworkManager {
 				}
 				
 				synchronized (downloader.mLock) {
-					if (SimpleDownloader.isAutoConcurrentLocked()) {
-						SimpleDownloader.autoConcurrencyController.resetLocked();
-						SimpleDownloader.autoConcurrencyController.ensureInitializedLocked();
+					if (downloader.isAutoConcurrentLocked()) {
+						SimpleDownloader.autoConcurrencyController().resetLocked();
+						SimpleDownloader.autoConcurrencyController().ensureInitializedLocked();
 					}
 					downloader.slotManager.dispatchReadyTasks();
 				}
@@ -287,12 +290,7 @@ final class NetworkManager {
 	WaitingDecision decideWaitingForNetwork(DownloadTask task) {
 		if (task == null) return new WaitingDecision(false, false);
 		if (!isNetworkAvailable()) return new WaitingDecision(false, false);
-		
-		if (task.mWifiOnly && getNetworkType() != NETWORK_TYPE_WIFI) {
-			boolean hasRunnableQueuedTask = downloader.slotManager.hasRunnableQueuedTaskLocked();
-			if (hasRunnableQueuedTask) return new WaitingDecision(true, true);
-			return new WaitingDecision(false, false);
-		}
+		if (task.mWifiOnly && getNetworkType() != NETWORK_TYPE_WIFI) return new WaitingDecision(true, true);
 		return new WaitingDecision(false, false);
 	}
 	
