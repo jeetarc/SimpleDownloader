@@ -18,7 +18,7 @@ import android.graphics.Bitmap;
 import com.jeet.simpledownloader.thumbnail.ThumbLoader;
 import com.jeet.simpledownloader.util.SpeedHelper;
 import com.jeet.simpledownloader.util.EtaHelper;
-
+import com.jeet.simpledownloader.util.Logs;
 
 final class DownloadWorker {
 	private final DownloadTask task;
@@ -156,7 +156,9 @@ final class DownloadWorker {
 			synchronized (downloader.mLock) {
 				slotManager.removeQueuedTask(task);
 				networkManager.getWaitingForPreferredNetwork().remove(task);
-				taskManager.removeTaskCompletelyLocked(task);
+				synchronized (SimpleDownloader.GLOBAL_LOCK) {
+					taskManager.removeTaskCompletelyLocked(task);
+				}
 				taskManager.clearAutoSpeedLocked(task);
 				if (taskDatabase != null) taskDatabase.removeTask(task.mId);
 			}
@@ -245,7 +247,7 @@ final class DownloadWorker {
 			}
 			
 			task.setStatus(Status.DOWNLOADING);
-			byte[] buffer = new byte[task.mBufferSize];
+			byte[] buffer = new byte[task.mDownloader.getBufferSize()];
 			long total = resumeBase;
 			long lastProgressBytes = -1L;
 			long lastProgressUpdateTime = 0L;
@@ -324,7 +326,7 @@ final class DownloadWorker {
 		EventDispatcher.onProgress(task);
 		syncNow(downloaded, total);
 		verifyChecksum();
-        OutputResolver.finishOutput(task);
+		OutputResolver.finishOutput(task);
 		requestThumbnail(downloaded, true);
 		task.setStatus(Status.COMPLETED);
 		EventDispatcher.onComplete(task);
@@ -333,10 +335,8 @@ final class DownloadWorker {
 	
 	private void executeFailed(Exception error) {
 		task.mLastError = error;
-		System.err.println("SimpleDownloader: Task " + task.mId + " failed: " + error.toString());
 		Throwable cause = error.getCause();
-		if (cause != null) System.err.println("SimpleDownloader: Task " + task.mId + " cause: " + cause.toString());
-		
+		if (cause != null) Logs.err("Download Failed for task " + task.mId, error);
 		OutputResolver.deleteIfEmpty(task);
 		task.setStatus(Status.FAILED);
 		EventDispatcher.onError(task, error);
@@ -352,10 +352,7 @@ final class DownloadWorker {
 		task.mLastSyncTime = System.currentTimeMillis();
 		task.mLastSyncBytes = bytesDownloaded;
 		int progress = totalBytes > 0 ? (int) Math.min(100, (bytesDownloaded * 100L) / totalBytes) : 0;
-		
-		if (task.mDownloader.taskDatabase != null) {
-			task.mDownloader.taskDatabase.updateResumeData(task.mId, bytesDownloaded, totalBytes, progress, task.mETag, task.mLastModified);
-		}
+		if (task.mDownloader.taskDatabase != null) task.mDownloader.taskDatabase.updateResumeData(task.mId, bytesDownloaded, totalBytes, progress, task.mETag, task.mLastModified);
 	}
 	
 	private void verifyChecksum() throws Exception {
@@ -375,14 +372,11 @@ final class DownloadWorker {
 		InputStream in = null;
 		
 		try {
-			if (task.mOutputFile != null) {
-				in = new FileInputStream(task.mOutputFile);
-			} else if (task.mOutputUri != null) {
-				in = task.mContext.getContentResolver().openInputStream(task.mOutputUri);
-			}
+			if (task.mOutputFile != null) in = new FileInputStream(task.mOutputFile);
+			else if (task.mOutputUri != null) in = task.mContext.getContentResolver().openInputStream(task.mOutputUri);
 			
 			if (in == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Cannot open output for checksum verification.", -1, false);
-			byte[] buffer = new byte[Math.max(4096, task.mBufferSize)];
+			byte[] buffer = new byte[Math.max(4096, task.mDownloader.getBufferSize())];
 			int len;
 			while ((len = in.read(buffer)) != -1) digest.update(buffer, 0, len);
 			return toHex(digest.digest());
@@ -406,13 +400,8 @@ final class DownloadWorker {
 	
 	private void resetChecksumOutputForRetry() throws Exception {
 		boolean overwrite = task.mOverwriteUri != null || (task.mOverwritePath != null && !task.mOverwritePath.isEmpty());
-		
-		if (overwrite) {
-			OutputResolver.clearOutput(task);
-			
-		} else if (OutputResolver.isOutputValid(task) && !OutputResolver.deleteOutput(task)) {
-				throw new DownloadException(DownloadException.Type.FILE_ERROR, "Cannot delete corrupted output before retry.", -1, false);
-		}
+		if (overwrite) OutputResolver.clearOutput(task);
+		else if (OutputResolver.isOutputValid(task) && !OutputResolver.deleteOutput(task)) throw new DownloadException(DownloadException.Type.FILE_ERROR, "Cannot delete corrupted output before retry.", -1, false);
 		
 		task.mChecksumFailed = false;
 		if (task.mDownloader.taskDatabase != null) task.mDownloader.taskDatabase.updateChecksumFailed(task.mId, false);
@@ -457,7 +446,8 @@ final class DownloadWorker {
 					public void onThumbnailUnavailable(long id) {}
 				});
 				
-			} catch (Exception ignored) {
+			} catch (Exception e) {
+				Logs.err("Failed create thumbnail request.", e);
 				return;
 			}
 		}
@@ -467,8 +457,8 @@ final class DownloadWorker {
 	
 	private void recordAutoSpeedSample(long speed) {
 		synchronized (task.mDownloader.mLock) {
-			SimpleDownloader.taskManager.updateAutoSpeedLocked(task, speed);
-			SimpleDownloader.autoConcurrencyController.recordSpeedSampleLocked();
+			task.mDownloader.taskManager.updateAutoSpeedLocked(task, speed);
+			SimpleDownloader.autoConcurrencyController().recordSpeedSampleLocked();
 		}
 	}
 	
@@ -482,3 +472,4 @@ final class DownloadWorker {
 		} catch (Throwable ignored) {}
 	}
 }
+
