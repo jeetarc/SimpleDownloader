@@ -19,6 +19,7 @@ import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 import com.jeet.simpledownloader.util.TypeResolver;
+import com.jeet.simpledownloader.util.Logs;
 
 final class HttpEngine {
 	private OkHttpClient baseClient;
@@ -40,6 +41,10 @@ final class HttpEngine {
 		if (closePreviousClient) shutdownClient(previousClient);
 	}
 	
+	synchronized void clearTimeoutClients() {
+		timeoutClients.clear();
+	}
+
 	synchronized OkHttpClient getClient(int connectTimeout, int readTimeout) {
 		if (baseClient == null) {
 			baseClient = new OkHttpClient.Builder()
@@ -416,7 +421,9 @@ final class HttpEngine {
 		if (client.cache() != null) {
 			try {
 				client.cache().close();
-			} catch (Throwable ignored) {}
+			} catch (Throwable thr) {
+                Logs.err("Failed to shutdown OkHttpClient.", thr);
+            }
 		}
 	}
 	
