@@ -16,11 +16,17 @@ DownloadTask task = SimpleDownloader.getInstance(context)
 
 **Screenshots:**
 
-<table cellpadding="0">
+<table cellpadding="0" cellspacing="0">
   <tr>
-    <td cellpadding="0"><img src="assets/screenshots/simpledownloader_downloads_ui.jpg" width="300" alt="SimpleDownloader Downloads UI"></td>
-    <td cellpadding="0"><img src="assets/screenshots/simpledownloader_notification_group.jpg" width="300" alt="SimpleDownloader Group Notification"></td>
-    <td cellpadding="0"><img src="assets/screenshots/simpledownloader_notification_complete.jpg" width="300" alt="SimpleDownloader Complete Notification"></td>
+    <td>
+      <img src="assets/screenshots/simpledownloader_downloads_ui.jpg" width="300" alt="SimpleDownloader Downloads UI">
+    </td>
+    <td>
+      <img src="assets/screenshots/simpledownloader_notification_group.jpg" width="300" alt="SimpleDownloader Group Notification">
+    </td>
+    <td>
+      <img src="assets/screenshots/simpledownloader_notification_complete.jpg" width="300" alt="SimpleDownloader Complete Notification">
+    </td>
   </tr>
 </table>
 
