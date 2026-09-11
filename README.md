@@ -19,9 +19,8 @@ DownloadTask task = SimpleDownloader.getInstance(context)
 <table>
   <tr>
     <td><img src="assets/screenshots/simpledownloader_downloads_ui.jpg" width="400" alt="Img1"></td>
-    <td><img src="assets/screenshots/simpledownloader_notification_single.jpg" width="400" alt="Img2"></td>
-    <td><img src="assets/screenshots/simpledownloader_notification_group.jpg" width="400" alt="Img3"></td>
-    <td><img src="assets/screenshots/simpledownloader_notification_complete.jpg" width="400" alt="Img4"></td>
+    <td><img src="assets/screenshots/simpledownloader_notification_group.jpg" width="400" alt="Img2"></td>
+    <td><img src="assets/screenshots/simpledownloader_notification_complete.jpg" width="400" alt="Img3"></td>
   </tr>
 </table>
 
