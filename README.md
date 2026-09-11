@@ -7,12 +7,23 @@
 
 SimpleDownloader is an Android download library. It handles the parts that usually make downloading difficult: queues, concurrent downloads, pause and resume, unstable networks, scoped storage, task persistence, foreground, notifications, progress updates, etc.
 
-A simple API:
+**A simple API:**
 
 ```java
 DownloadTask task = SimpleDownloader.getInstance(context)
     .startDownload(DownloadRequest.from(folderPath, FileName.AUTO, fileUrl));
 ```
+
+**Screenshots:**
+
+<table>
+  <tr>
+    <td><img src="assets/screenshots/simpledownloader_downloads_ui.jpg" width="400" alt="Img1"></td>
+    <td><img src="assets/screenshots/simpledownloader_notification_single.jpg" width="400" alt="Img2"></td>
+    <td><img src="assets/screenshots/simpledownloader_notification_group.jpg" width="400" alt="Img3"></td>
+    <td><img src="assets/screenshots/simpledownloader_notification_complete.jpg" width="400" alt="Img4"></td>
+  </tr>
+</table>
 
 ## Features
 
@@ -1069,7 +1080,7 @@ List<DownloadTask> tasks = downloader.getTasks(TaskField.STATUS, Status.COMPLETE
 ```
 This means: get tasks whose STATUS is COMPLETED. 
 
-- field = WHAT should I check?
+- field = WHAT should it check?
 - value = WHAT should it equal?
 
 Available TaskFields:
