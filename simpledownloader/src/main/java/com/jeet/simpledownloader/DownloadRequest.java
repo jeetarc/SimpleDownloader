@@ -14,11 +14,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
-* An immutable description of a download to start with {@link SimpleDownloader}.
+* An immutable request of a download to start with {@link SimpleDownloader}.
 *
-* <p>Use {@link Builder} to create a request. Request-only settings describe the
-* download itself; shared settings override the corresponding downloader defaults
-* only when they are explicitly set on the request.</p>
+* <p>Use {@link Builder} to create a request. Request only settings represent the download itself.
+* Shared common settings override the SimpleDownloader defaults only when they are set again on the request.</p>
 */
 public final class DownloadRequest {
 	final long id;
