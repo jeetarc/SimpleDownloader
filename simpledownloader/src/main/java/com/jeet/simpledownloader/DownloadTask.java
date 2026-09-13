@@ -98,7 +98,6 @@ public class DownloadTask {
 	final DownloadNotification mNotification;
 	volatile boolean mNotificationDismissed = false;
 	volatile boolean mChecksumFailed = false;
-	volatile Call mThumbnailCall;
 	volatile boolean mThumbnailUrlAttempted;
 	
 	/** Receives updates for this task only. */
@@ -150,7 +149,7 @@ public class DownloadTask {
 		mWifiOnly = request.hasWifiOnly ? request.wifiOnly : downloader.isWifiOnlyDefault();
 		mDeleteOnRemoval = request.hasDeleteOnRemoval ? request.deleteOnRemoval : downloader.isDeleteOnRemovalDefault();
 		mLockedInQueue = request.lockedInQueue;
-		mMaxRetryCount = downloader.mRetryPolicy.getMaxRetryCount();
+		mMaxRetryCount = downloader.mRetryPolicy.getRetryCount();
 	}
 	
 	private DownloadTask(SimpleDownloader downloader, TaskState state) {
@@ -190,7 +189,7 @@ public class DownloadTask {
 		mChecksumAlgorithm = state.checksumAlgorithm;
 		mChecksumValue = state.checksumValue;
 		mId = state.id;
-		mMaxRetryCount = downloader.mRetryPolicy.getMaxRetryCount();
+		mMaxRetryCount = downloader.mRetryPolicy.getRetryCount();
 		mPriority = state.priority == null ? Priority.NORMAL : state.priority;
 		mWifiOnly = state.wifiOnly;
 		mDeleteOnRemoval = state.deleteOnRemoval;
@@ -391,7 +390,7 @@ public class DownloadTask {
 	public Exception getError() { return mLastError; }
 	@NonNull
 	public SimpleDownloader getDownloader() { return mDownloader; }
-	public int getMaxRetryCount() { return mMaxRetryCount; }
+	public int getRetryCount() { return mMaxRetryCount; }
 	@Nullable
 	public Uri getOutputUri() { return mOutputUri; }
 	@Nullable
@@ -541,21 +540,14 @@ public class DownloadTask {
 	
 	void cancelThumbnailRequest() {
 		ThumbRequest request;
-		Call call;
 		
 		synchronized (this) {
 			request = mThumbRequest;
-			call = mThumbnailCall;
 			mThumbRequest = null;
-			mThumbnailCall = null;
 		}
 		
 		ThumbLoader loader = mDownloader.thumbLoader;
 		if (request != null && loader != null) loader.cancel(request);
-		
-		if (call != null) {
-			if (loader != null) loader.cancelUrl(call); else call.cancel();
-		}
 	}
 	
 	boolean cannotBeReplaced() {
