@@ -98,7 +98,7 @@ final class DownloadWorker {
 				
 				Exception mappedError = mapException(error);
 				
-				if (!retryPolicy.shouldRetry(mappedError) || attempt >= retryPolicy.getMaxRetryCount()) {
+				if (!retryPolicy.shouldRetry(mappedError) || attempt >= retryPolicy.getRetryCount()) {
 					executeFailed(mappedError);
 					return;
 				}
@@ -426,7 +426,6 @@ final class DownloadWorker {
 		if (notification != null) {
 			if (!notification.showThumbnail) return;
 			if (notification.thumbnail != null) return;
-			if (notification.thumbnailUrl != null) return;
 		}
 		
 		ThumbLoader loader = task.mDownloader.thumbLoader;
@@ -472,4 +471,3 @@ final class DownloadWorker {
 		} catch (Throwable ignored) {}
 	}
 }
-
