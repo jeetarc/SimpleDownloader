@@ -17,20 +17,20 @@ import javax.net.ssl.SSLException;
  */
 
 public final class RetryPolicy {
-	private final int maxRetryCount;
+	private final int retryCount;
 	private final long initialDelayMs;
 	private final long maxDelayMs;
 	private final double multiplier;
 	
 	private RetryPolicy(Builder builder) {
-		maxRetryCount = builder.maxRetryCount;
+		retryCount = builder.retryCount;
 		initialDelayMs = builder.initialDelayMs;
 		maxDelayMs = builder.maxDelayMs;
 		multiplier = builder.multiplier;
 	}
 	
-	public static RetryPolicy ofAttempts(int maxRetryCount) {
-		return builder().retryCount(maxRetryCount).build();
+	public static RetryPolicy ofAttempts(int retryCount) {
+		return builder().retryCount(retryCount).build();
 	}
 	
 	public static Builder builder() {
@@ -38,7 +38,7 @@ public final class RetryPolicy {
 	}
 	
 	public int getRetryCount() {
-		return maxRetryCount;
+		return retryCount;
 	}
 	
 	long getDelayMs(int attempt) {
@@ -69,13 +69,13 @@ public final class RetryPolicy {
 	}
 	
 	public static final class Builder {
-		private int maxRetryCount = 1;
+		private int retryCount = 1;
 		private long initialDelayMs = 750;
 		private long maxDelayMs = 30000;
 		private double multiplier = 2.0;
 		
-		public Builder retryCount(int maxRetryCount) {
-			this.maxRetryCount = Math.max(0, maxRetryCount);
+		public Builder retryCount(int retryCount) {
+			this.retryCount = Math.max(0, retryCount);
 			return this;
 		}
 		
