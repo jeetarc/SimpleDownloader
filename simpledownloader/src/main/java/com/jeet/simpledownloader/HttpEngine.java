@@ -98,29 +98,6 @@ final class HttpEngine {
 		return client.newCall(request);
 	}
 	
-	Call newThumbnailCall(DownloadTask task, String thumbnailUrl, Map<String, String> headers) {
-		if (task == null || thumbnailUrl == null || thumbnailUrl.trim().isEmpty()) throw new IllegalArgumentException("Thumbnail URL or DownloadTask cannot be resolved");
-		String userAgent = task.mUserAgent;
-		if (userAgent == null || userAgent.trim().isEmpty()) userAgent = System.getProperty("http.agent");
-		
-		Request.Builder builder = new Request.Builder()
-		.url(thumbnailUrl.trim())
-		.header("Accept", "image/*");
-		
-		if (userAgent != null && !userAgent.trim().isEmpty()) {
-			builder.header("User-Agent", userAgent);
-		}
-		
-		if (headers != null) {
-			for (Map.Entry<String, String> header : headers.entrySet()) {
-				if (header.getKey() == null || header.getValue() == null) continue;
-				builder.header(header.getKey(), header.getValue());
-			}
-		}
-		
-		return newCall(task, builder.build());
-	}
-	
 	HttpConnection open(DownloadTask task, long existingFileSize) throws IOException, RefreshRequestException {
 		Request.Builder requestBuilder = newRequestBuilder(task);
 		
