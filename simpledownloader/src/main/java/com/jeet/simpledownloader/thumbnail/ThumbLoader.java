@@ -26,14 +26,11 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import okhttp3.Call;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
 import com.jeet.simpledownloader.util.Logs;
 
 /**
 * Thumbnail loader (used internally).
-* <p>It can decode local media on download and from thumbnail image URLs.
+* <p>It can decode local media on download.
 */
 public final class ThumbLoader {
 	private static final long ATTEMPT_TIMEOUT_MS = 60_000L;
@@ -45,7 +42,6 @@ public final class ThumbLoader {
 	private final ExecutorService decoderExecutor;
 	private final ScheduledExecutorService timeoutExecutor;
 	private final Set<ThumbRequest> requests = Collections.newSetFromMap(new ConcurrentHashMap<ThumbRequest, Boolean>());
-	private final Set<Call> networkCalls = Collections.newSetFromMap(new ConcurrentHashMap<Call, Boolean>());
 	private volatile boolean shutdown;
 	
 	public interface Callback {
@@ -71,80 +67,13 @@ public final class ThumbLoader {
 	
 	public ThumbRequest createRequest(long id, File sourceFile, Uri sourceUri, String mimeType, int width, int height, Callback callback) {
 		if (shutdown) throw new IllegalStateException("ThumbLoader is shut down.");
-		if (sourceFile == null && sourceUri == null) {
-			throw new IllegalArgumentException("A local thumbnail source is required.");
-		}
-		
+		if (sourceFile == null && sourceUri == null) throw new IllegalArgumentException("A local thumbnail source is required.");
 		if (callback == null) throw new NullPointerException("callback == null");
-		int safeWidth = width > 0 ? width : DEFAULT_WIDTH;
+        int safeWidth = width > 0 ? width : DEFAULT_WIDTH;
 		int safeHeight = height > 0 ? height : DEFAULT_HEIGHT;
 		ThumbRequest request = new ThumbRequest(id, sourceFile, sourceUri, mimeType, safeWidth, safeHeight, callback);
 		requests.add(request);
 		return request;
-	}
-	
-	public void loadUrl(final long id, final Call call, final int width, final int height, final Callback callback) {
-		if (shutdown) throw new IllegalStateException("ThumbLoader is shut down.");
-		if (call == null) throw new NullPointerException("call == null");
-		if (callback == null) throw new NullPointerException("callback == null");
-		
-		final int safeWidth = width > 0 ? width : DEFAULT_WIDTH;
-		final int safeHeight = height > 0 ? height : DEFAULT_HEIGHT;
-		networkCalls.add(call);
-		
-		try {
-			call.timeout().timeout(ATTEMPT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-			call.enqueue(new okhttp3.Callback() {
-				@Override
-				public void onFailure(Call failedCall, IOException error) {
-					networkCalls.remove(failedCall);
-					if (shutdown || failedCall.isCanceled()) return;
-					postUrlUnavailable(id, failedCall, callback);
-				}
-				
-				@Override
-				public void onResponse(Call completedCall, Response response) {
-					Bitmap bitmap = null;
-					
-					try {
-						if (!response.isSuccessful()) {
-							postUrlUnavailable(id, completedCall, callback);
-							return;
-						}
-						
-						ResponseBody body = response.body();
-						if (body == null) {
-							postUrlUnavailable(id, completedCall, callback);
-							return;
-						}
-						
-						bitmap = ThumbDecoder.decodeImage(body.byteStream(), safeWidth, safeHeight);
-						if (bitmap == null) {
-							postUrlUnavailable(id, completedCall, callback);
-							return;
-						}
-						
-						postUrlReady(id, completedCall, bitmap, callback);
-						bitmap = null;
-						
-					} catch (Throwable e) {
-                        Logs.err("Failed to load thumbnail from URL.", e);
-						if (!completedCall.isCanceled()) postUrlUnavailable(id, completedCall, callback);
-						
-					} finally {
-						networkCalls.remove(completedCall);
-						response.close();
-						recycle(bitmap);
-					}
-				}
-			});
-			
-		} catch (Throwable error) {
-            Logs.err("Failed to thumbnail load from URL.", error);
-			networkCalls.remove(call);
-			if (!call.isCanceled()) postUrlUnavailable(id, null, callback);
-			call.cancel();
-		}
 	}
 	
 	/** Called after the output buffer has been flushed at a progress milestone. */
@@ -153,7 +82,7 @@ public final class ThumbLoader {
 		submit(request, request.onBytesAvailable(Math.max(0L, downloadedBytes)));
 	}
 	
-	/** Always allows one final extraction attempt against the completed file. */
+	/** Allows one final extraction attempt for the completed file. */
 	public void onCompleted(ThumbRequest request, long downloadedBytes) {
 		if (request == null || shutdown) return;
 		submit(request, request.onCompleted(Math.max(0L, downloadedBytes)));
@@ -165,12 +94,6 @@ public final class ThumbLoader {
 		request.cancel();
 	}
 	
-	public void cancelUrl(Call call) {
-		if (call == null) return;
-		networkCalls.remove(call);
-		call.cancel();
-	}
-	
 	public void shutdown() {
 		if (shutdown) return;
 		shutdown = true;
@@ -178,12 +101,8 @@ public final class ThumbLoader {
 		for (ThumbRequest request : requests) {
 			if (request != null) request.cancel();
 		}
-		for (Call call : networkCalls) {
-			if (call != null) call.cancel();
-		}
 		
 		requests.clear();
-		networkCalls.clear();
 		decoderExecutor.shutdownNow();
 		timeoutExecutor.shutdownNow();
 	}
@@ -193,7 +112,7 @@ public final class ThumbLoader {
 	}
 	
 	public boolean hasRunningRequests() {
-		return !requests.isEmpty() || !networkCalls.isEmpty();
+		return !requests.isEmpty();
 	}
 	
 	private void submit(final ThumbRequest request, final ThumbRequest.Attempt attempt) {
@@ -294,30 +213,6 @@ public final class ThumbLoader {
 				requests.remove(request);
 				if (shutdown || !request.canReportUnavailable(generation)) return;
 				request.callback.onThumbnailUnavailable(request.id);
-			}
-		});
-	}
-	
-	private void postUrlReady(final long id, final Call call, final Bitmap bitmap, final Callback callback) {
-		mainHandler.post(new Runnable() {
-			@Override
-			public void run() {
-				if (shutdown || call.isCanceled()) {
-					recycle(bitmap);
-					return;
-				}
-				
-				callback.onThumbnailReady(id, bitmap);
-			}
-		});
-	}
-	
-	private void postUrlUnavailable(final long id, final Call call, final Callback callback) {
-		mainHandler.post(new Runnable() {
-			@Override
-			public void run() {
-				if (shutdown || (call != null && call.isCanceled())) return;
-				callback.onThumbnailUnavailable(id);
 			}
 		});
 	}
