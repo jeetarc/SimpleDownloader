@@ -12,9 +12,6 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
 import android.graphics.Bitmap;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * Configures the notification channel, appearance, actions, and update
@@ -37,8 +34,6 @@ public final class DownloadNotification {
 	boolean soundEnabled = false;
 	Uri soundUri = null;
 	Bitmap thumbnail;
-	String thumbnailUrl;
-	Map<String, String> thumbnailHeaders = Collections.emptyMap();
 	boolean vibrationEnabled = false;
 	long[] vibrationPattern = null;
 	boolean showThumbnail = true;
@@ -48,7 +43,7 @@ public final class DownloadNotification {
 	boolean showCompleteNotification = true;
 	boolean showErrorNotification = true;
 	long notificationUpdateIntervalMs = 1000L;
-	
+    
 	public DownloadNotification() {}
 	
 	DownloadNotification(DownloadNotification source) {
@@ -73,8 +68,6 @@ public final class DownloadNotification {
 		vibrationPattern = source.vibrationPattern == null ? null : source.vibrationPattern.clone();
 		showThumbnail = source.showThumbnail;
 		thumbnail = source.thumbnail;
-		thumbnailUrl = source.thumbnailUrl;
-		thumbnailHeaders = source.thumbnailHeaders == null || source.thumbnailHeaders.isEmpty() ? Collections.<String, String>emptyMap() : Collections.unmodifiableMap(new LinkedHashMap<String, String>(source.thumbnailHeaders));
 		showPauseAction = source.showPauseAction;
 		showCancelAction = source.showCancelAction;
 		showRetryAction = source.showRetryAction;
@@ -123,7 +116,7 @@ public final class DownloadNotification {
 		return this;
 	}
 	
-	// Pass a real color int, (Example: 0xFF0087E5).
+	/** Pass a real color int, (Example: 0xFF0087E5). */
 	public DownloadNotification setColorAccent(int colorAccent) {
 		this.colorAccent = colorAccent;
 		this.colorAccentRes = 0;
@@ -131,7 +124,7 @@ public final class DownloadNotification {
 		return this;
 	}
 	
-	// Pass an Android color resource, (Example: R.color.blue).
+	/** Pass an Android color resource, (Example: R.color.blue). */
 	public DownloadNotification setColorAccentResource(int colorAccentRes) {
 		if (colorAccentRes != 0) {
 			this.colorAccentRes = colorAccentRes;
@@ -185,44 +178,11 @@ public final class DownloadNotification {
 	
 	public DownloadNotification setThumbnail(Bitmap bitmap) {
 		this.thumbnail = bitmap;
-		this.thumbnailUrl = null;
-		this.thumbnailHeaders = Collections.emptyMap();
-		return this;
-	}
-	
-	public DownloadNotification setThumbnailUrl(String url) {
-		return setThumbnailUrl(url, null);
-	}
-	
-	public DownloadNotification setThumbnailUrl(String url, Map<String, String> headers) {
-		this.thumbnail = null;
-		if (url == null || url.trim().isEmpty()) {
-			this.thumbnailUrl = null;
-			this.thumbnailHeaders = Collections.emptyMap();
-			return this;
-		}
-		
-		this.thumbnailUrl = url.trim();
-		
-		if (headers == null || headers.isEmpty()) {
-			this.thumbnailHeaders = Collections.emptyMap();
-			return this;
-		}
-		
-		Map<String, String> copiedHeaders = new LinkedHashMap<String, String>();
-		for (Map.Entry<String, String> header : headers.entrySet()) {
-			if (header.getKey() == null || header.getValue() == null) continue;
-			copiedHeaders.put(header.getKey(), header.getValue());
-		}
-		
-		this.thumbnailHeaders = Collections.unmodifiableMap(copiedHeaders);
 		return this;
 	}
 	
 	public DownloadNotification clearThumbnail() {
 		this.thumbnail = null;
-		this.thumbnailUrl = null;
-		this.thumbnailHeaders = Collections.emptyMap();
 		return this;
 	}
 	
