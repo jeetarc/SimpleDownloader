@@ -99,7 +99,7 @@ public class SimpleDownloader {
 	private volatile boolean mForegroundEnabled;
 	private volatile boolean mAutoRestore;
 	private volatile boolean mAutoRestoreDone;
-	private volatile boolean mResumeOnNetworkGain;
+	private volatile boolean mResumeOnNetworkGain = true;
 	volatile int mConnectTimeout = 15_000;
 	volatile int mReadTimeout = 30_000;
 	volatile long mProgressInterval = 300L;
@@ -169,7 +169,7 @@ public class SimpleDownloader {
 		private boolean restoreFiltered;
 		private TaskField<?> restoreField;
 		private Object restoreValue;
-		private boolean sortingEnabled = true;
+		private boolean sortingEnabled;
 		private Comparator<DownloadTask> taskComparator;
 		private int maxConcurrent = 0;
 		private boolean historyEnabled;
@@ -182,7 +182,7 @@ public class SimpleDownloader {
 		private int bufferSize = 16 * 1024;
 		private RetryPolicy retryPolicy = RetryPolicy.builder().build();
 		private boolean downloadOnSlotFree = true;
-		private boolean resumeOnNetworkGain;
+		private boolean resumeOnNetworkGain = true;
 		private SimpleDownloader builtDownloader;
 		
 		public Builder(Context context) {
@@ -580,7 +580,7 @@ public class SimpleDownloader {
 			ensureNotShutdownLocked();
 			mRetryPolicy = retryPolicy;
 			for (DownloadTask task : taskManager.snapshot()) {
-				if (task != null && !task.cannotBeReplaced()) task.mMaxRetryCount = retryPolicy.getMaxRetryCount();
+				if (task != null && !task.cannotBeReplaced()) task.mMaxRetryCount = retryPolicy.getRetryCount();
 			}
 		}
 		return this;
