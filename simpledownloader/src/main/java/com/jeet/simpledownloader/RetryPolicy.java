@@ -30,14 +30,14 @@ public final class RetryPolicy {
 	}
 	
 	public static RetryPolicy ofAttempts(int maxRetryCount) {
-		return builder().maxRetryCount(maxRetryCount).build();
+		return builder().retryCount(maxRetryCount).build();
 	}
 	
 	public static Builder builder() {
 		return new Builder();
 	}
 	
-	public int getMaxRetryCount() {
+	public int getRetryCount() {
 		return maxRetryCount;
 	}
 	
@@ -74,7 +74,7 @@ public final class RetryPolicy {
 		private long maxDelayMs = 30000;
 		private double multiplier = 2.0;
 		
-		public Builder maxRetryCount(int maxRetryCount) {
+		public Builder retryCount(int maxRetryCount) {
 			this.maxRetryCount = Math.max(0, maxRetryCount);
 			return this;
 		}
