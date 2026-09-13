@@ -21,12 +21,10 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-import okhttp3.Call;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import com.jeet.simpledownloader.util.Formator;
-import com.jeet.simpledownloader.thumbnail.ThumbLoader;
 import com.jeet.simpledownloader.util.Logs;
 
 /**
@@ -35,7 +33,6 @@ import com.jeet.simpledownloader.util.Logs;
 * <p>Applications should not start or control this service directly.</p>
 */
 public final class DownloadService extends Service {
-	private static final String TAG = "SimpleDownloader";
 	static final String ACTION_ATTACH_LIFECYCLE = "com.jeet.simpledownloader.action.ATTACH_LIFECYCLE";
 	static final String ACTION_ATTACH_ACTIVE = "com.jeet.simpledownloader.action.ATTACH_ACTIVE";
 	static final String ACTION_PAUSE = "com.jeet.simpledownloader.action.PAUSE";
@@ -114,6 +111,7 @@ public final class DownloadService extends Service {
 					NotificationBuilder builder = new NotificationBuilder(app, notification);
 					manager.cancel(builder.finishedNotificationId(task.mId));
 				}
+				
 			} catch (Throwable thr) {
 				Logs.err("Unable to perform retry.", thr);
 			}
@@ -259,7 +257,7 @@ public final class DownloadService extends Service {
 		
 		return START_NOT_STICKY;
 	}
-
+	
 	@Override
 	public void onTimeout(int startId, int fgsType) {
 		handleForegroundTimeout(startId);
@@ -348,68 +346,7 @@ public final class DownloadService extends Service {
 		if (!isNotificationAllowed(task)) return;
 		task.mNotificationDismissed = false;
 		addToGroup(task);
-		prepareConfiguredThumbnail(task);
 		postProgressNotification(task, "Download starting...", null, task.mProgress, true, false, true);
-	}
-	
-	private void prepareConfiguredThumbnail(final DownloadTask task) {
-		if (task == null || task.mNotification == null) return;
-		final DownloadNotification notification = task.mNotification;
-		if (!notification.showThumbnail || notification.thumbnail != null) return;
-		if (notification.thumbnailUrl == null || notification.thumbnailUrl.trim().isEmpty()) return;
-		
-		final ThumbLoader loader = task.mDownloader.thumbLoader;
-		if (loader == null || loader.isShutdown()) return;
-		final Call call;
-		
-		synchronized (task) {
-			if (task.mThumbnailUrlAttempted || task.mThumbnailCall != null) return;
-			task.mThumbnailUrlAttempted = true;
-			
-			try {
-				call = task.mDownloader.httpEngine.newThumbnailCall(task, notification.thumbnailUrl, notification.thumbnailHeaders);
-				task.mThumbnailCall = call;
-			} catch (Throwable thr) {
-				Logs.err("Unable prepare configured thumbnails.", thr);
-				return;
-			}
-		}
-		
-		try {
-			loader.loadUrl(task.mId, call, 92, 92, new ThumbLoader.Callback() {
-				@Override
-				public void onThumbnailReady(long id, Bitmap bitmap) {
-					boolean accepted;
-					
-					synchronized (task) {
-						accepted = task.mThumbnailCall == call;
-						if (accepted) task.mThumbnailCall = null;
-					}
-					
-					if (!accepted) {
-						if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
-						return;
-					}
-					
-					DownloadService.onThumbnailReady(task, bitmap);
-				}
-				
-				@Override
-				public void onThumbnailUnavailable(long id) {
-					synchronized (task) {
-						if (task.mThumbnailCall == call) task.mThumbnailCall = null;
-					}
-				}
-			});
-			
-		} catch (Throwable thr) {
-			synchronized (task) {
-				if (task.mThumbnailCall == call) task.mThumbnailCall = null;
-			}
-			
-			loader.cancelUrl(call);
-			Logs.err("Unable prepare configured thumbnails.", thr);
-		}
 	}
 	
 	private void handleBecameActive(DownloadTask task) {
@@ -592,12 +529,17 @@ public final class DownloadService extends Service {
 		if (task.status == Status.WAITING_FOR_NETWORK) return "Waiting for network • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
 		if (task.status == Status.RETRYING) return "Retrying..";
 		if (task.status == Status.PAUSED) return "Paused • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
-		return Formator.formatEta(task.mEta) + " left • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
+		return getEtaText(task.mEta) + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
 	}
 	
 	private String speedSubText(DownloadTask task) {
 		if (task == null || task.status != Status.DOWNLOADING) return null;
 		return Formator.formatSpeed(task.mSpeed);
+	}
+	
+	private String getEtaText(long eta) {
+		if (eta < 0L) return "";
+		return Formator.formatEta(eta) + " left • ";
 	}
 	
 	private void postProgressNotification(DownloadTask task, String text, String subText, int progress, boolean indeterminate, boolean paused, boolean allowPost) {
@@ -631,7 +573,9 @@ public final class DownloadService extends Service {
 			}
 			
 			manager.notify(builder.finishedNotificationId(task.mId), notification);
-		} catch (Throwable ignored) {}
+		} catch (Throwable thr) {
+			Logs.err("Failed to post finished thumbnail.", thr);
+		}
 	}
 	
 	private Bitmap getThumbnail(DownloadTask task) {
