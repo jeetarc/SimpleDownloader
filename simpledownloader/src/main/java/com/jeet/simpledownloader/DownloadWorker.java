@@ -6,15 +6,17 @@ package com.jeet.simpledownloader;
 * This source code is part of SimpleDownloader.
 */
 
+import android.graphics.Bitmap;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
-import java.security.MessageDigest;
 import javax.net.ssl.SSLException;
-import android.graphics.Bitmap;
+import java.security.MessageDigest;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ThreadLocalRandom;
 import com.jeet.simpledownloader.thumbnail.ThumbLoader;
 import com.jeet.simpledownloader.util.SpeedHelper;
 import com.jeet.simpledownloader.util.EtaHelper;
@@ -25,8 +27,11 @@ final class DownloadWorker {
 	private final SpeedHelper speedHelper = new SpeedHelper();
 	private final EtaHelper etaHelper = new EtaHelper();
 	private boolean stopHandled = false;
+	private volatile boolean outputInvalid;
+	private volatile int outputValidationGen;
+	private final AtomicBoolean outputCheckRunning = new AtomicBoolean(false);
+	private long nextOutputCheckTime;
 	
-	private static final long OUTPUT_CHECK_INTERVAL = 8000;
 	private static final long SYNC_INTERVAL_MS = 4000;
 	private static final int MAX_REFRESH = 6;
 	
@@ -204,6 +209,8 @@ final class DownloadWorker {
 	private void doDownload(long resumeFrom) throws Exception {
 		etaHelper.reset();
 		stopHandled = false;
+		outputInvalid = false;
+		outputValidationGen++;
 		
 		if (task.stopRequested()) {
 			executeStopRequest(resumeFrom);
@@ -247,12 +254,12 @@ final class DownloadWorker {
 			}
 			
 			task.setStatus(Status.DOWNLOADING);
+			nextOutputCheckTime = System.currentTimeMillis() + nextOutputCheckInterval();
 			byte[] buffer = new byte[task.mDownloader.getBufferSize()];
 			long total = resumeBase;
 			long lastProgressBytes = -1L;
 			long lastProgressUpdateTime = 0L;
 			long lastNotificationUpdateTime = 0L;
-			long lastOutputCheckTime = 0L;
 			long notificationUpdateInterval = task.mNotification != null ? task.mNotification.notificationUpdateIntervalMs : 1000L;
 			int len;
 			
@@ -289,11 +296,15 @@ final class DownloadWorker {
 					}
 				}
 				
-				if (now - lastOutputCheckTime >= OUTPUT_CHECK_INTERVAL) {
-					lastOutputCheckTime = now;
-					if (!OutputResolver.isOutputValid(task)) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Output file was deleted, corrupted, or became invalid.", -1, false);
+				if (now >= nextOutputCheckTime) {
+					nextOutputCheckTime = now + nextOutputCheckInterval();
+                    requestOutputValidation();
 				}
 				
+				if (outputInvalid) {
+					OutputResolver.cleanupInvalidOutput(task);
+					throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Output file was deleted, corrupted, or became invalid.", -1, false);
+				}    
 				syncAfterInterval(total, totalBytes, now);
 			}
 			
@@ -306,7 +317,11 @@ final class DownloadWorker {
 			}
 			
 			task.mCurrentCall = null;
-			if (!OutputResolver.isOutputValid(task)) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Output file was deleted, corrupted, or became invalid.", -1, false);
+			if (!OutputResolver.isOutputValid(task)) {
+				OutputResolver.cleanupInvalidOutput(task);
+				throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Output file was deleted, corrupted, or became invalid.", -1, false);
+			}
+			
 			if (totalBytes > 0 && total < totalBytes) throw DownloadException.emptyResponse("Download ended before expected size. Expected " + totalBytes + ", got " + total + ".");
 			executeComplete(total, finalTotal);
 			
@@ -336,11 +351,15 @@ final class DownloadWorker {
 	private void executeFailed(Exception error) {
 		task.mLastError = error;
 		Throwable cause = error.getCause();
-		if (cause != null) Logs.err("Download Failed for task " + task.mId, error);
+		if (cause != null) Logs.err("Download Failed for task " + task.mId, cause);
 		OutputResolver.deleteIfEmpty(task);
 		task.setStatus(Status.FAILED);
 		EventDispatcher.onError(task, error);
 		task.mDownloader.slotManager.finishTask(task, true, true);
+	}
+	
+	private long nextOutputCheckInterval() {
+		return 6000L + ThreadLocalRandom.current().nextLong(4000L);
 	}
 	
 	private void syncAfterInterval(long bytesDownloaded, long totalBytes, long now) {
@@ -452,6 +471,28 @@ final class DownloadWorker {
 		}
 		
 		if (completed) loader.onCompleted(task.mThumbRequest, availableBytes); else loader.onBytesAvailable(task.mThumbRequest, availableBytes);
+	}
+	
+	private void requestOutputValidation() {
+		if (outputInvalid) return;
+		if (!outputCheckRunning.compareAndSet(false, true)) return;
+		final int generation = outputValidationGen;
+		
+		SimpleDownloader.OUTPUT_VALIDATION_EXECUTOR.execute(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					boolean valid = OutputResolver.isOutputValid(task);
+					if (!valid && generation == outputValidationGen) outputInvalid = true;
+					
+				} catch (Throwable ignored) {
+					if (generation == outputValidationGen) outputInvalid = true;
+					
+				} finally {
+					outputCheckRunning.set(false);
+				}
+			}
+		});
 	}
 	
 	private void recordAutoSpeedSample(long speed) {
