@@ -24,7 +24,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import com.jeet.simpledownloader.util.Formator;
+import com.jeet.simpledownloader.util.Formatter;
 import com.jeet.simpledownloader.util.Logs;
 
 /**
@@ -534,12 +534,12 @@ public final class DownloadService extends Service {
 	
 	private String speedSubText(DownloadTask task) {
 		if (task == null || task.status != Status.DOWNLOADING) return null;
-		return Formator.formatSpeed(task.mSpeed);
+		return Formatter.formatSpeed(task.mSpeed);
 	}
 	
 	private String getEtaText(long eta) {
 		if (eta < 0L) return "";
-		return Formator.formatEta(eta) + " left • ";
+		return Formatter.formatEta(eta) + " left • ";
 	}
 	
 	private void postProgressNotification(DownloadTask task, String text, String subText, int progress, boolean indeterminate, boolean paused, boolean allowPost) {
@@ -693,7 +693,7 @@ public final class DownloadService extends Service {
 	}
 	
 	static String formatBytesRatio(long downloaded, long total) {
-		return Formator.formatRatio(Formator.formatBytes(downloaded), Formator.formatBytes(total), " / ");
+		return Formatter.formatRatio(Formatter.formatBytes(downloaded), Formatter.formatBytes(total), " / ");
 	}
 	
 	private void executeNotificationWork(Runnable work) {
