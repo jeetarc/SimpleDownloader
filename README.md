@@ -106,7 +106,7 @@ Imports (if not automatic):
 import com.jeet.simpledownloader.<ClassName>;
 import com.jeet.simpledownloader.util.<ClassName>;
 ```
-Replace '<ClassName>' with the class you want to import.
+Replace `<ClassName>` with the class you want to import.
 
 ## Quick start
 
