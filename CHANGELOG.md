@@ -6,7 +6,6 @@
 - Removed the `long id` parameter from `SimpleDownloader.Listener` callback methods for cleaner APIs.
 - Moved output validation checks off the download thread.
 - Added randomized output validation intervals.
-- and more
 
 ### Fixes:
 
@@ -15,48 +14,7 @@
 
 ### Migration:
 
-- Add the `DownloadTask` parameter as the last parameter for all `DownloadTask.Listener` callbacks.
-
-Replace:
-
-```java
-@Override
-public void onProgress(int progress, long speed, long etaMs) {}
-```
-
-with (v1.0.1):
-
-```java
-@Override
-public void onProgress(int progress, long speed, long etaMs, DownloadTask task) {}
-```
-
-- Remove the `long id` (1st) parameter from all `SimpleDownloader.Listener` callbacks.
-
-Replace:
-
-```java
-@Override
-public void onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {}
-```
-## v1.0.1
-
-### Improvements:
-
-- `DownloadTask.Listener` callback methods now contain a `DownloadTask` parameter.
-- Removed the `long id` parameter from `SimpleDownloader.Listener` callback methods for cleaner APIs.
-- Moved output validation checks off the download thread.
-- Added randomized output validation intervals.
-
-### Fixes:
-
-- Fixed global concurrency counters not being released correctly when active tasks were cleared during shutdown.
-- Renamed `Formator` to `Formatter`.
-
-### Migration:
-
-Add the `DownloadTask` parameter as the last parameter for all `DownloadTask.Listener` callbacks.
-Replace:
+Add the `DownloadTask` parameter as the last parameter for all `DownloadTask.Listener` callbacks.So replace:
 ```java
 @Override
 public void onProgress(int progress, long speed, long etaMs) {}
@@ -67,8 +25,7 @@ with (v1.0.1):
 public void onProgress(int progress, long speed, long etaMs, DownloadTask task) {}
 ```
 
-Remove the `long id` (1st) parameter from all `SimpleDownloader.Listener` callbacks.
-Replace:
+Remove the `long id` (1st) parameter from all `SimpleDownloader.Listener` callbacks. So replace:
 ```java
 @Override
 public void onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {}
