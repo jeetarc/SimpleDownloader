@@ -5,7 +5,7 @@
 ![Android API](https://img.shields.io/badge/Android-API%2021%2B-3DDC84?logo=android&logoColor=white)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-SimpleDownloader is an Android download library. It handles the parts that usually make downloading difficult: queues, concurrent downloads, pause and resume, unstable networks, scoped storage, task persistence, foreground, notifications, progress updates, etc.
+SimpleDownloader is an Android file downloader library. It handles the parts that usually make downloading difficult: queues, concurrent downloads, pause and resume, unstable networks, scoped storage, task persistence, foreground, notifications, progress updates, etc.
 
 **A simple API:**
 
