@@ -102,19 +102,75 @@ public class DownloadTask {
 	
 	/** Receives updates for this task only. */
 	public interface Listener {
-		default void onProgress(int progress, long speed, long etaMs) {}
-		default void onComplete(Uri outputUri) {}
-		default void onError(Uri outputUri, Exception error) {}
+		default void onStart(DownloadTask task) { onStart(); }
+		default void onQueued(int position, DownloadTask task) { onQueued(position); }
+		default void onProgress(int progress, long speed, long etaMs, DownloadTask task) { onProgress(progress, speed, etaMs); }
+		default void onComplete(Uri outputUri, DownloadTask task) { onComplete(outputUri); }
+		default void onError(Uri outputUri, Exception error, DownloadTask task) { onError(outputUri, error); }
+		default void onPaused(DownloadTask task) { onPaused(); }
+		default void onResumed(DownloadTask task) { onResumed(); }
+		default void onCancelled(DownloadTask task) { onCancelled(); }
+		default void onRemoved(boolean outputDeleted, DownloadTask task) { onRemoved(outputDeleted); }
+		default void onRetry(int attempt, DownloadTask task) { onRetry(attempt); }
+		default void onWaitingForNetwork(int networkType, DownloadTask task) { onWaitingForNetwork(networkType); }
+		default void onStatusChanged(Status status, DownloadTask task) { onStatusChanged(status); }
+		default void onActiveChanged(boolean isActive, DownloadTask task) { onActiveChanged(isActive); }
+		default void onLifecycleChanged(int lifecycle, DownloadTask task) { onLifecycleChanged(lifecycle); }
+		
+		/** @deprecated Use {@link #onStart(DownloadTask)} */
+		@Deprecated
 		default void onStart() {}
+		
+		/** @deprecated Use {@link #onQueued(int, DownloadTask)} */
+		@Deprecated
 		default void onQueued(int position) {}
+		
+		/** @deprecated Use {@link #onProgress(int, long, long, DownloadTask)} */
+		@Deprecated
+		default void onProgress(int progress, long speed, long etaMs) {}
+		
+		/** @deprecated Use {@link #onComplete(Uri, DownloadTask)} */
+		@Deprecated
+		default void onComplete(Uri outputUri) {}
+		
+		/** @deprecated Use {@link #onError(Uri, Exception, DownloadTask)} */
+		@Deprecated
+		default void onError(Uri outputUri, Exception error) {}
+		
+		/** @deprecated Use {@link #onPaused(DownloadTask)} */
+		@Deprecated
 		default void onPaused() {}
+		
+		/** @deprecated Use {@link #onResumed(DownloadTask)} */
+		@Deprecated
 		default void onResumed() {}
+		
+		/** @deprecated Use {@link #onCancelled(DownloadTask)} */
+		@Deprecated
 		default void onCancelled() {}
+		
+		/** @deprecated Use {@link #onRemoved(boolean, DownloadTask)} */
+		@Deprecated
 		default void onRemoved(boolean outputDeleted) {}
+		
+		/** @deprecated Use {@link #onRetry(int, DownloadTask)} */
+		@Deprecated
 		default void onRetry(int attempt) {}
+		
+		/** @deprecated Use {@link #onWaitingForNetwork(int, DownloadTask)} */
+		@Deprecated
 		default void onWaitingForNetwork(int networkType) {}
+		
+		/** @deprecated Use {@link #onStatusChanged(Status, DownloadTask)} */
+		@Deprecated
 		default void onStatusChanged(Status status) {}
+		
+		/** @deprecated Use {@link #onActiveChanged(boolean, DownloadTask)} */
+		@Deprecated
 		default void onActiveChanged(boolean isActive) {}
+		
+		/** @deprecated Use {@link #onLifecycleChanged(int, DownloadTask)} */
+		@Deprecated
 		default void onLifecycleChanged(int lifecycle) {}
 	}
 	
