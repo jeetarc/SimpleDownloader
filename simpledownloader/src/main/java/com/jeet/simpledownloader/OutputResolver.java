@@ -26,6 +26,7 @@ import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.database.Cursor;
 import android.os.Bundle;
+import com.jeet.simpledownloader.util.TypeResolver;
 import com.jeet.simpledownloader.util.Logs;
 
 final class OutputResolver {
@@ -216,7 +217,7 @@ final class OutputResolver {
 	}  
 	
 	private static File createUniqueFile(File folder, String fileName) throws IOException {  
-		String ext = com.jeet.simpledownloader.util.TypeResolver.getExtension(fileName);  
+		String ext = TypeResolver.getExtension(fileName);  
 		String baseName = getBaseName(fileName);  
 		String suffix = ext.isEmpty() ? "" : "." + ext;  
 		File file = new File(folder, fileName);  
@@ -328,7 +329,7 @@ final class OutputResolver {
 	
 	private static String resolveUniqueMediaStoreName(DownloadTask task, String baseFileName, String relativePath) {  
 		ContentResolver resolver = task.mContext.getContentResolver();  
-		String ext = com.jeet.simpledownloader.util.TypeResolver.getExtension(baseFileName);  
+		String ext = TypeResolver.getExtension(baseFileName);  
 		String baseName = getBaseName(baseFileName);  
 		String suffix = ext.isEmpty() ? "" : "." + ext;  
 		String candidate = baseFileName;  
@@ -409,7 +410,7 @@ final class OutputResolver {
 			}
 			
 		} catch (Throwable thr) {
-            Logs.err("Failed to get MediaStore display name.", thr);
+			Logs.err("Failed to get MediaStore display name.", thr);
 		} finally {
 			if (cursor != null) cursor.close();
 		}
@@ -561,7 +562,7 @@ final class OutputResolver {
 			long length = file.length();  
 			return Math.max(0, length);  
 		} catch (Throwable thr) {
-            Logs.err("Unable get file length for DocumentFile: " + file.getUri().toString(), thr);
+			Logs.err("Unable get file length for DocumentFile: " + file.getUri().toString(), thr);
 			return 0;
 		}
 	}  
@@ -571,7 +572,7 @@ final class OutputResolver {
 			if (file == null) return 0;  
 			return Math.max(0, file.length());  
 		} catch (Throwable thr) {
-            Logs.err("Unable get file length for File: " + file.getAbsolutePath(), thr);
+			Logs.err("Unable get file length for File: " + file.getAbsolutePath(), thr);
 			return 0;  
 		}
 	}  
@@ -585,7 +586,7 @@ final class OutputResolver {
 			return size >= 0 ? size : -1;
 			
 		} catch (Throwable thr) {
-            Logs.err("Unable get file length for MediaStore item: " + uri.toString(), thr);
+			Logs.err("Unable get file length for MediaStore item: " + uri.toString(), thr);
 			return -1;
 		}
 	}
@@ -603,44 +604,45 @@ final class OutputResolver {
 	
 	static boolean isOutputValid(DownloadTask task) {
 		if (task == null || task.mContext == null) return false;
-		boolean isValid = false;
 		
 		try {
 			boolean isMediaStore = isMediaStoreItemUri(task.mOutputUri);
 			
 			if (task.mOutputFile != null) {
-				isValid = task.mOutputFile.exists();
+				return task.mOutputFile.exists();
 				
 			} else if (task.mOutputDocFile != null) {
-				isValid = task.mOutputDocFile.exists();
+				return task.mOutputDocFile.exists();
 				
 			} else if (isMediaStore) {
 				try (ParcelFileDescriptor pfd = task.mContext.getContentResolver().openFileDescriptor(task.mOutputUri, "r")) {
-					isValid = pfd != null;
+					return pfd != null;
+					
 				} catch (Throwable ignored) {
-					isValid = false;
+					return false;
 				}
-				
-			} 
-			
-			if (!isValid) {
-				if (isMediaStore) {
-					try {
-						task.mContext.getContentResolver().delete(task.mOutputUri, null, null);
-					} catch (Throwable ignored) {}
-				}
-				
-				clearOutputReferences(task);
-				updateOutputData(task);
 			}
 			
-			return isValid;
+			return false;
+			
 		} catch (Throwable thr) {
-			clearOutputReferences(task);
-			updateOutputData(task);
-            Logs.err("Unable to verify output file.", thr);
+			Logs.err("Unable to verify output file.", thr);
 			return false;
 		}
+	}
+	
+	static void cleanupInvalidOutput(DownloadTask task) {
+		if (task == null || task.mContext == null) return;
+		boolean isMediaStore = isMediaStoreItemUri(task.mOutputUri);
+		
+		if (isMediaStore && task.mOutputUri != null) {
+			try {
+				task.mContext.getContentResolver().delete(task.mOutputUri, null, null);
+			} catch (Throwable ignored) {}
+		}
+		
+		clearOutputReferences(task);
+		updateOutputData(task);
 	}
 	
 	static void finishOutput(DownloadTask task) throws IOException {  
