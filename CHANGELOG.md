@@ -14,7 +14,7 @@
 
 ### Migration:
 
-Add the `DownloadTask` parameter as the last parameter for all `DownloadTask.Listener` callbacks.So replace:
+Add the `DownloadTask` parameter as the last parameter for all `DownloadTask.Listener` callbacks. So replace:
 ```java
 @Override
 public void onProgress(int progress, long speed, long etaMs) {}
