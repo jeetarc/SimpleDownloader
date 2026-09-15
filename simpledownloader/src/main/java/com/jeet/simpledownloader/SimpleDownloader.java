@@ -9,8 +9,8 @@ package com.jeet.simpledownloader;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.os.Looper;
+import android.net.Uri;
 import androidx.annotation.Nullable;
-import com.jeet.simpledownloader.thumbnail.ThumbLoader;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import okhttp3.OkHttpClient;
+import com.jeet.simpledownloader.thumbnail.ThumbLoader;
 import com.jeet.simpledownloader.util.Logs;
 
 /**
@@ -53,13 +54,14 @@ public class SimpleDownloader {
 	private static final Set<SimpleDownloader> INSTANCES = new HashSet<SimpleDownloader>();
 	private static final AtomicLong NEXT_TASK_ID = new AtomicLong(System.currentTimeMillis());
 	private static final ExecutorService ADAPTIVE_DISPATCH_EXECUTOR = Executors.newSingleThreadExecutor();
+    static final ExecutorService OUTPUT_VALIDATION_EXECUTOR = Executors.newCachedThreadPool();
 	private static final AtomicInteger GLOBAL_MANUAL_OCCUPIED = new AtomicInteger();
 	private static final AtomicInteger GLOBAL_AUTO_OCCUPIED = new AtomicInteger();
 	private static final AutoConcurrencyController AUTO_CONCURRENCY_CONTROLLER = new AutoConcurrencyController();
 	static TaskDatabase SHARED_DATABASE;
 	private static int DATABASE_USERS;
 	private static volatile SimpleDownloader sDefault;
-	public static volatile boolean loggingEnabled = true;
+	public static volatile boolean loggingEnabled = false;
 	
 	final Object mLock = new Object();
 	final Context mContext;
@@ -74,19 +76,75 @@ public class SimpleDownloader {
 	
 	/** Receives updates from every task owned by this downloader. */
 	public interface Listener {
+		default void onStart(DownloadTask task) { onStart(task.getId(), task); }
+		default void onQueued(int position, DownloadTask task) { onQueued(task.getId(), position, task); }
+		default void onProgress(int progress, long speed, long etaMs, DownloadTask task) { onProgress(task.getId(), progress, speed, etaMs, task); }
+		default void onPaused(DownloadTask task) { onPaused(task.getId(), task); }
+		default void onResumed(DownloadTask task) { onResumed(task.getId(), task); }
+		default void onCancelled(DownloadTask task) { onCancelled(task.getId(), task); }
+		default void onComplete(Uri outputUri, DownloadTask task) { onComplete(task.getId(), outputUri, task); }
+		default void onError(Uri outputUri, Exception error, DownloadTask task) { onError(task.getId(), outputUri, error, task); }
+		default void onRemoved(boolean outputDeleted, DownloadTask task) { onRemoved(task.getId(), outputDeleted, task); }
+		default void onRetry(int attempt, DownloadTask task) { onRetry(task.getId(), attempt, task); }
+		default void onWaitingForNetwork(int networkType, DownloadTask task) { onWaitingForNetwork(task.getId(), networkType, task); }
+		default void onStatusChanged(Status status, DownloadTask task) { onStatusChanged(task.getId(), status, task); }
+		default void onActiveChanged(boolean isActive, DownloadTask task) { onActiveChanged(task.getId(), isActive, task); }
+		default void onLifecycleChanged(int lifecycle, DownloadTask task) { onLifecycleChanged(task.getId(), lifecycle, task); }
+
+		/** @deprecated Use {@link #onStart(DownloadTask)} */
+		@Deprecated
 		default void onStart(long id, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onQueued(int, DownloadTask)} */
+		@Deprecated
 		default void onQueued(long id, int position, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onProgress(int, long, long, DownloadTask)} */
+		@Deprecated
 		default void onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onPaused(DownloadTask)} */
+		@Deprecated
 		default void onPaused(long id, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onResumed(DownloadTask)} */
+		@Deprecated
 		default void onResumed(long id, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onCancelled(DownloadTask)} */
+		@Deprecated
 		default void onCancelled(long id, DownloadTask task) {}
-		default void onComplete(long id, android.net.Uri outputUri, DownloadTask task) {}
-		default void onError(long id, android.net.Uri outputUri, Exception error, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onComplete(Uri, DownloadTask)} */
+		@Deprecated
+		default void onComplete(long id, Uri outputUri, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onError(Uri, Exception, DownloadTask)} */
+		@Deprecated
+		default void onError(long id, Uri outputUri, Exception error, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onRemoved(boolean, DownloadTask)} */
+		@Deprecated
 		default void onRemoved(long id, boolean outputDeleted, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onRetry(int, DownloadTask)} */
+		@Deprecated
 		default void onRetry(long id, int attempt, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onWaitingForNetwork(int, DownloadTask)} */
+		@Deprecated
 		default void onWaitingForNetwork(long id, int networkType, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onStatusChanged(Status, DownloadTask)} */
+		@Deprecated
 		default void onStatusChanged(long id, Status status, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onActiveChanged(boolean, DownloadTask)} */
+		@Deprecated
 		default void onActiveChanged(long id, boolean isActive, DownloadTask task) {}
+
+		/** @deprecated Use {@link #onLifecycleChanged(int, DownloadTask)} */
+		@Deprecated
 		default void onLifecycleChanged(long id, int lifecycle, DownloadTask task) {}
 	}
 	
@@ -838,7 +896,9 @@ public class SimpleDownloader {
 		loggingEnabled = enable;
 	}
 	
-	static boolean hasGlobalCapacityLocked() { return sGlobalConcurrent <= 0 || getGlobalManualOccupiedLocked() + getGlobalAutoOccupiedLocked() < sGlobalConcurrent; }
+	static boolean hasGlobalCapacityLocked() {
+        return sGlobalConcurrent <= 0 || getGlobalManualOccupiedLocked() + getGlobalAutoOccupiedLocked() < sGlobalConcurrent;
+    }
 	
 	void validateNotificationConfigLocked() {
 		if (mForegroundEnabled && !mNotificationsEnabled) throw new IllegalStateException("Cannot run foreground without notifications.");
