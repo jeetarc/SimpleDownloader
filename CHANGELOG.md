@@ -39,9 +39,41 @@ Replace:
 @Override
 public void onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {}
 ```
+## v1.0.1
 
+### Improvements:
+
+- `DownloadTask.Listener` callback methods now contain a `DownloadTask` parameter.
+- Removed the `long id` parameter from `SimpleDownloader.Listener` callback methods for cleaner APIs.
+- Moved output validation checks off the download thread.
+- Added randomized output validation intervals.
+
+### Fixes:
+
+- Fixed global concurrency counters not being released correctly when active tasks were cleared during shutdown.
+- Renamed `Formator` to `Formatter`.
+
+### Migration:
+
+Add the `DownloadTask` parameter as the last parameter for all `DownloadTask.Listener` callbacks.
+Replace:
+```java
+@Override
+public void onProgress(int progress, long speed, long etaMs) {}
+```
 with (v1.0.1):
+```java
+@Override
+public void onProgress(int progress, long speed, long etaMs, DownloadTask task) {}
+```
 
+Remove the `long id` (1st) parameter from all `SimpleDownloader.Listener` callbacks.
+Replace:
+```java
+@Override
+public void onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {}
+```
+with (v1.0.1):
 ```java
 @Override
 public void onProgress(int progress, long speed, long etaMs, DownloadTask task) {
@@ -49,9 +81,11 @@ public void onProgress(int progress, long speed, long etaMs, DownloadTask task) 
     // task.getId();
 }
 ```
-Same for all other methods. [More about Listeners](https://github.com/jeetarc/SimpleDownloader/blob/main/README.md#callbacks-and-listeners)
+Same for all other methods.
+[More about Listeners](https://github.com/jeetarc/SimpleDownloader/blob/main/README.md#callbacks-and-listeners)
 
-- If you are using the SimpleDownloader `Formator` utility, rename it to `Formatter`. [More about Utilities](https://github.com/jeetarc/SimpleDownloader/blob/main/README.md#utilities)
+If you are using the SimpleDownloader `Formator` utility, rename it to `Formatter`.
+[More about Utilities](https://github.com/jeetarc/SimpleDownloader/blob/main/README.md#utilities)
 
 ## v1.0.0
 
