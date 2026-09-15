@@ -64,11 +64,11 @@ final class SlotManager {
 		}
 		return true;
 	}
-
+	
 	int getOccupiedCountLocked() {
 		return occupiedSlots.size();
 	}
-
+	
 	void onConcurrencyModeChangedLocked(boolean oldAuto, boolean newAuto) {
 		if (oldAuto == newAuto) return;
 		SimpleDownloader.rebalanceOccupiedCountersLocked(occupiedSlots.size(), oldAuto, newAuto);
@@ -359,6 +359,7 @@ final class SlotManager {
 	
 	DownloadExecutor shutdownLocked() {
 		heldQueue.clear();
+		for (DownloadTask task : occupiedSlots) SimpleDownloader.onSlotReleasedLocked(downloader);
 		occupiedSlots.clear();
 		forcedTasks.clear();
 		DownloadExecutor oldExecutor = executor;
@@ -419,7 +420,7 @@ final class AutoConcurrencyController {
 	private static final long SPEED_SAMPLE_INTERVAL_MS = 500L;
 	private static final long FIRST_ALLOCATION_DELAY_MS = 2500L;
 	private static final long SAMPLE_MAX_AGE_MS = 15_000L;
-
+	
 	private boolean initialized;
 	private boolean firstAllocationDone;
 	private long lastRecordTime;
@@ -427,7 +428,7 @@ final class AutoConcurrencyController {
 	private long lastSampleTime;
 	private long smoothedTotalSpeed;
 	private int targetSlots = SimpleDownloader.AUTO_MIN_SLOT;
-
+	
 	void resetLocked() {
 		synchronized (this) {
 			initialized = false;
@@ -439,11 +440,11 @@ final class AutoConcurrencyController {
 			targetSlots = SimpleDownloader.AUTO_MIN_SLOT;
 		}
 	}
-
+	
 	void onInstanceRemovedLocked() {
 		if (SimpleDownloader.getGlobalAutoActiveCountLocked() == 0) resetLocked();
 	}
-
+	
 	void ensureInitializedLocked() {
 		synchronized (this) {
 			if (initialized) return;
@@ -456,12 +457,12 @@ final class AutoConcurrencyController {
 			smoothedTotalSpeed = 0;
 		}
 	}
-
+	
 	int getTargetSlotsLocked() {
 		ensureInitializedLocked();
 		synchronized (this) { return targetSlots; }
 	}
-
+	
 	void recordSpeedSampleLocked() {
 		if (SimpleDownloader.getGlobalAutoActiveCountLocked() <= 0) return;
 		ensureInitializedLocked();
@@ -485,7 +486,7 @@ final class AutoConcurrencyController {
 		}
 		if (changed) SimpleDownloader.onAdaptiveStateChangedLocked();
 	}
-
+	
 	void evaluateAfterTaskFinishedLocked() {
 		if (SimpleDownloader.getGlobalAutoActiveCountLocked() <= 0) return;
 		ensureInitializedLocked();
@@ -499,7 +500,7 @@ final class AutoConcurrencyController {
 		}
 		if (changed) SimpleDownloader.onAdaptiveStateChangedLocked();
 	}
-
+	
 	private int calculateSlotFromSpeed(long bytesPerSecond) {
 		if (bytesPerSecond <= 0) return 1;
 		double mbps = (bytesPerSecond * 8.0) / 1_000_000.0;
@@ -507,7 +508,7 @@ final class AutoConcurrencyController {
 		int slots = roundedMbps / 10;
 		return Math.max(SimpleDownloader.AUTO_MIN_SLOT, Math.min(SimpleDownloader.AUTO_MAX_SLOT, slots));
 	}
-
+	
 	private long smoothSpeed(long oldSpeed, long newSpeed) {
 		if (oldSpeed <= 0) return newSpeed;
 		return (long) ((oldSpeed * 0.65f) + (newSpeed * 0.35f));
