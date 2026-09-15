@@ -70,7 +70,7 @@ Add SimpleDownloader to your app module:
 
 ```gradle
 dependencies {
-    implementation "com.github.jeetarc:SimpleDownloader:1.0.0"
+    implementation "com.github.jeetarc:SimpleDownloader:1.0.1"
 }
 ```
 
@@ -100,6 +100,13 @@ and request the permission at runtime.
 Storage permissions are not required when saving to an app-specific folder or using folderUri via MediaStore or Storage Access Framework.
 
 > All other required permissions and components are added by default.
+
+Imports (if not automatic):
+```java
+import com.jeet.simpledownloader.<ClassName>;
+import com.jeet.simpledownloader.util.<ClassName>;
+```
+Replace <ClassName> with the class you want to import.
 
 ## Quick start
 
@@ -309,8 +316,21 @@ downloader.hasTask(id);
 downloader.hasTask(fileUrl);
 ```
 
-Common request fields can be set directly to the SimpleDownloader instance:
+Available SimpleDownloader instance settings:
 ```java
+.setMaxConcurrent(int max)
+.enableHistory(boolean enable)
+.enableForeground(boolean enable)
+.enableNotifications(boolean enable)
+.setNotification(DownloadNotification notification)
+.setProgressInterval(long ms)
+.setConnectTimeout(int ms)
+.setReadTimeout(int ms)
+.setBufferSize(int bytes)
+.setRetryCount(int count)
+.setRetryPolicy(RetryPolicy retryPolicy)
+.enableResumeOnNetworkGain(boolean enable)
+.setTaskComparator(Comparator<DownloadTask> comparator)
 .setSubFolder(String value)
 .setHeaders(Map<String,String> headers)
 .addHeader(String key, String value)
@@ -319,9 +339,10 @@ Common request fields can be set directly to the SimpleDownloader instance:
 .setWifiOnly(boolean enable)
 .setDeleteOnRemoval(boolean enable)
 ```
-You can overwrite SimpleDownloader request fields by setting them again for each request using `DownloadRequest.builder()`
 
-Downloader configuration and state can be read back with:
+You can overwrite SimpleDownloader common request fields by setting them again for each request using `DownloadRequest.builder()`
+
+Downloader configuration and state can be get back with:
 
 ```java
 downloader.getOwnerId();
@@ -342,6 +363,14 @@ downloader.areNotificationsEnabled();
 downloader.isForegroundEnabled();
 downloader.isAdaptiveConcurrencyEnabled();
 ```
+
+If something doesn't work as expected, enable logging to see the internal failure:
+
+```java
+SimpleDownloader.enableLogging(true);
+```
+
+Disable it for production releases.
 
 More:
 - [Callbacks and Listeners](#Callbacks-and-Listeners)
@@ -489,45 +518,25 @@ Use listeners and the observer to listen for download updates. All callbacks run
 ```java
 SimpleDownloader.Listener listener = new SimpleDownloader.Listener() {
     @Override
-    public void onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {
+    public void onProgress(int progress, long speed, long etaMs, DownloadTask task) {
         progressBar.setProgress(progress);
-        speedText.setText(Formator.formatSpeed(speed));
-        etaText.setText(Formator.formatEta(etaMs));
+        speedText.setText(Formatter.formatSpeed(speed));
+        etaText.setText(Formatter.formatEta(etaMs));
     }
 
     @Override
-    public void onComplete(long id, Uri outputUri, DownloadTask task) {
+    public void onComplete(Uri outputUri, DownloadTask task) {
         // The download finished successfully.
     }
 
     @Override
-    public void onError(long id, Uri outputUri, Exception error, DownloadTask task) {
+    public void onError(Uri outputUri, Exception error, DownloadTask task) {
         // The download failed.
     }
 };
 
 downloader.addListener(listener);
 ```
-
-Available callbacks are:
-
-```java
-onStart(long id, DownloadTask task) {}
-onQueued(long id, int position, DownloadTask task) {}
-onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {}
-onPaused(long id, DownloadTask task) {}
-onResumed(long id, DownloadTask task) {}
-onCancelled(long id, DownloadTask task) {}
-onComplete(long id, Uri outputUri, DownloadTask task) {}
-onError(long id, Uri outputUri, Exception error, DownloadTask task) {}
-onRemoved(long id, boolean outputDeleted, DownloadTask task) {}
-onRetry(long id, int attempt, DownloadTask task) {}
-onWaitingForNetwork(long id, int networkType, DownloadTask task) {}
-onStatusChanged(long id, Status status, DownloadTask task) {}
-onActiveChanged(long id, boolean isActive, DownloadTask task) {}
-onLifecycleChanged(long id, int lifecycle, DownloadTask task) {}
-```
-
 Remove listeners when they are no longer needed:
 
 ```java
@@ -541,36 +550,17 @@ downloader.removeAllListeners();
 ```java
 DownloadTask.Listener taskListener = new DownloadTask.Listener() {
     @Override
-    public void onProgress(int progress, long speed, long etaMs) {
+    public void onProgress(int progress, long speed, long etaMs, DownloadTask task) {
         // Updates for this task only.
     }
 
     @Override
-    public void onComplete(Uri outputUri) {
+    public void onComplete(Uri outputUri, DownloadTask task) {
         // This task finished.
     }
 };
 
 task.addListener(taskListener);
-```
-
-Available callbacks are:
-
-```java
-onStart()
-onQueued(int position)
-onProgress(int progress, long speed, long etaMs)
-onPaused()
-onResumed()
-onCancelled()
-onComplete(Uri outputUri)
-onError(Uri outputUri, Exception error)
-onRemoved(boolean outputDeleted)
-onRetry(int attempt)
-onWaitingForNetwork(int networkType)
-onStatusChanged(Status status)
-onActiveChanged(boolean isActive)
-onLifecycleChanged(int lifecycle)
 ```
 Remove listeners when they are no longer needed:
 
@@ -578,6 +568,26 @@ Remove listeners when they are no longer needed:
 task.removeListener(taskListener);
 task.removeAllListeners();
 ```
+
+**Available callbacks are:**
+
+```java
+onStart(DownloadTask task) {}
+onQueued(int position, DownloadTask task) {}
+onProgress(int progress, long speed, long etaMs, DownloadTask task) {}
+onPaused(DownloadTask task) {}
+onResumed(DownloadTask task) {}
+onCancelled(DownloadTask task) {}
+onComplete(Uri outputUri, DownloadTask task) {}
+onError(Uri outputUri, Exception error, DownloadTask task) {}
+onRemoved(boolean outputDeleted, DownloadTask task) {}
+onRetry(int attempt, DownloadTask task) {}
+onWaitingForNetwork(int networkType, DownloadTask task) {}
+onStatusChanged(Status status, DownloadTask task) {}
+onActiveChanged(boolean isActive, DownloadTask task) {}
+onLifecycleChanged(int lifecycle, DownloadTask task) {}
+```
+The callback method signatures are the same for `DownloadTask.Listener` and `SimpleDownloader.Listener`.
 
 > `onStart()` can run again when a task starts after resume or retry. Use `onLifecycleChanged()` when you need to know the beginning or end of the full task lifecycle.
 
@@ -763,7 +773,7 @@ The default retry policy allows one automatic retry. Configure it when needed:
 
 ```java
 RetryPolicy retryPolicy = RetryPolicy.builder()
-    .maxRetryCount(3)
+    .retryCount(3)
     .initialDelayMs(750)
     .multiplier(2.0)
     .maxDelayMs(30_000)
@@ -788,7 +798,7 @@ RetryPolicy retryPolicy = RetryPolicy.ofAttempts(3);
 
 Read the configured retry policy when needed:
 ```java
-retryPolicy.getMaxRetryCount();
+retryPolicy.getRetryCount();
 retryPolicy.getInitialDelayMs();
 retryPolicy.getMaxDelayMs();
 retryPolicy.getMultiplier();
@@ -968,8 +978,6 @@ Available notification configuration includes:
 .setVibrationPattern(long[] vibrationPattern)
 .setLockscreenVisibility(int visibility)
 .setThumbnail(Bitmap bitmap)
-.setThumbnailUrl(String url)
-.setThumbnailUrl(String url, Map<String, String> headers)
 .clearThumbnail()
 .setShowThumbnail(boolean showThumbnail)
 .setShowPauseAction(boolean showPauseAction)
@@ -986,11 +994,7 @@ You can also set a thumbnail directly:
 
 ```java
 notification.setThumbnail(bitmap);
-
-// Or load one from a URL:
-notification.setThumbnailUrl(thumbnailUrl, thumbHeaders);
 ```
-Pass `null` for headers when they are not needed.
 
 ## Checksums
 
@@ -1010,7 +1014,7 @@ Download failures are reported as `DownloadException` when the library can class
 
 ```java
 @Override
-public void onError(Uri outputUri, Exception error) {
+public void onError(Uri outputUri, Exception error, DownloadTask task) {
     if (!(error instanceof DownloadException)) return;
 
     DownloadException failure = (DownloadException) error;
@@ -1069,10 +1073,10 @@ SimpleDownloader downloader = SimpleDownloader.builder(context)
     .build();
 ```
 
-Sorting is enabled by default. Disable it when needed:
+Sorting is disabled by default. Enable it when needed:
 
 ```java
-downloader.enableSorting(false);
+downloader.enableSorting(true);
 ```
 
 ## TaskField
@@ -1144,10 +1148,10 @@ You do not need to call `shutdown()` normally or when an Activity is destroyed. 
 ## Utilities
 
 ```java
-String size = Formator.formatBytes(bytes);
-String speed = Formator.formatSpeed(bytesPerSecond);
-String eta = Formator.formatEta(etaMs);
-String ratio = Formator.formatRatio(part, total);
+String size = Formatter.formatBytes(bytes);
+String speed = Formatter.formatSpeed(bytesPerSecond);
+String eta = Formatter.formatEta(etaMs);
+String ratio = Formatter.formatRatio(part, total);
 ```
 
 `TypeResolver` is used internally, but it is also available for resolving file extensions and MIME types for you.
@@ -1181,4 +1185,4 @@ String mimeFromUrl = TypeResolver.getMimeFromUrl(fileUrl);
 Found a problem or have a suggestion? Open an issue:
 https://github.com/jeetarc/SimpleDownloader/issues
 
-Copyright © 2026 Jeet / Jeetarc.
+Copyright (c) 2026 Jeet / Jeetarc.
