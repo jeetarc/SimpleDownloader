@@ -16,7 +16,7 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import java.util.List;
-import com.jeet.simpledownloader.util.Formator;
+import com.jeet.simpledownloader.util.Formatter;
 
 final class NotificationBuilder {
 	static final String GROUP_KEY = "SimpleDownloader_download_group";
@@ -135,7 +135,7 @@ final class NotificationBuilder {
 		}  
 		
 		long size = task.mTotalBytes > 0 ? task.mTotalBytes : task.mBytesDownloaded;  
-		String text = "Download complete (" + Formator.formatBytes(size) + ")";  
+		String text = "Download complete (" + Formatter.formatBytes(size) + ")";  
 		
 		b.setContentTitle(task.getFileName())  
 		.setContentText(text)
