@@ -1154,7 +1154,7 @@ String eta = Formatter.formatEta(etaMs);
 String ratio = Formatter.formatRatio(part, total);
 ```
 
-`TypeResolver` is used internally, but it is also available for resolving file extensions and MIME types for you.
+`TypeResolver` is used internally, but it is also available for resolving file extensions and MIME types. If unresolved it returns `""` (empty String).
 
 ```java
 String extension = TypeResolver.getExtension(fileName);
