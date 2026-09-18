@@ -488,7 +488,7 @@ task.getStatus();
 task.getPriority();
 task.getError();
 task.getCreatedAt();
-task.getMaxRetryCount();
+task.getRetryCount();
 
 task.canPause();
 task.canResume();
@@ -522,6 +522,8 @@ SimpleDownloader.Listener listener = new SimpleDownloader.Listener() {
         progressBar.setProgress(progress);
         speedText.setText(Formatter.formatSpeed(speed));
         etaText.setText(Formatter.formatEta(etaMs));
+        downloadedText.setText(Formatter.formatBytes(task.getDownloadedBytes());
+        totalText.setText(Formatter.formatBytes(task.getTotalBytes());
     }
 
     @Override
@@ -552,6 +554,8 @@ DownloadTask.Listener taskListener = new DownloadTask.Listener() {
     @Override
     public void onProgress(int progress, long speed, long etaMs, DownloadTask task) {
         // Updates for this task only.
+        downloadedText.setText(Formatter.formatBytes(task.getDownloadedBytes());
+        totalText.setText(Formatter.formatBytes(task.getTotalBytes());
     }
 
     @Override
