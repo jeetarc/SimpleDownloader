@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <style
+        name="Theme.SimpleDownloader"
+        parent="Theme.Material3.DayNight.NoActionBar">
+        <item
+            name="colorPrimary">@color/md_theme_primary</item>
+        <item
+            name="colorOnPrimary">@color/md_theme_on_primary</item>
+        <item
+            name="colorSecondary">@color/md_theme_secondary</item>
+        <item
+            name="colorSecondaryContainer">@color/md_theme_primary_faded</item>
+        <item
+            name="colorTertiary">@color/md_theme_tertiary</item>
+        <item
+            name="android:colorBackground">@color/md_theme_background</item>
+        <item
+            name="colorSurface">@color/md_theme_surface</item>
+        <item
+            name="android:statusBarColor">@color/md_theme_background</item>
+        <item
+            name="android:navigationBarColor">@color/md_theme_background</item>
+    </style>
+    
+    <style
+        name="Widget.App.TextInputLayout"
+        parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item
+            name="boxStrokeColor">@color/text_input_stroke</item>
+        <item
+            name="boxStrokeWidth">1dp</item>
+        <item
+            name="boxStrokeWidthFocused">2dp</item>
+        <item
+            name="hintTextColor">@color/text_input_stroke</item>
+        <item
+            name="boxBackgroundColor">@android:color/transparent</item>
+        <item
+            name="endIconMode">clear_text</item>
+    </style>
+</resources>

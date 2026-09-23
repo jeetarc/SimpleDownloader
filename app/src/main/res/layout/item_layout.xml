@@ -1,0 +1,142 @@
+<LinearLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:layout_width="match_parent"
+	android:layout_height="wrap_content"
+	android:orientation="vertical">
+	<LinearLayout
+		android:id="@+id/itemLinear"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginTop="8dp"
+		android:layout_marginBottom="8dp"
+		android:padding="6dp"
+		android:orientation="vertical">
+		<TextView
+			android:id="@+id/txtFileName"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginBottom="3dp"
+			android:textSize="11sp"
+			android:textStyle="bold"
+			android:textColor="#616161"
+			android:ellipsize="end"
+			android:maxLines="1"
+			android:focusable="false" />
+		<TextView
+			android:id="@+id/txtProgress"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:text="00.00 B / 00.00 B • 000.00 B/s • 00m 00s left"
+			android:textSize="12sp"
+			android:textStyle="bold"
+			android:textColor="#212121"
+			android:maxLines="1"
+			android:ellipsize="end"
+			android:focusable="false" />
+		<LinearLayout
+			android:id="@+id/linearProgress"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="4dp"
+			android:layout_marginBottom="5dp"
+			android:gravity="center_vertical"
+			android:orientation="horizontal">
+			<com.google.android.material.progressindicator.LinearProgressIndicator
+				android:id="@+id/progressBar"
+				android:layout_width="0dp"
+				android:layout_height="10dp"
+				android:layout_weight="1"
+				android:focusable="false"
+				app:indicatorColor="@color/md_theme_secondary" />
+			<ImageView
+				android:id="@+id/iconPauseResume"
+				android:layout_width="35dp"
+				android:layout_height="35dp"
+				android:src="@drawable/icon_play_arrow_round"
+				android:scaleType="centerInside"
+				android:layout_marginStart="8dp"
+				android:focusable="false"
+				android:tint="#000000" />
+		</LinearLayout>
+		<LinearLayout
+			android:id="@+id/linearButtons"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="2dp"
+			android:paddingTop="2dp"
+			android:paddingBottom="2dp"
+			android:gravity="center_vertical"
+			android:orientation="horizontal">
+			<com.google.android.material.button.MaterialButton
+				android:id="@+id/btnOpen"
+				android:layout_width="wrap_content"
+				android:layout_height="40dp"
+				android:paddingLeft="8dp"
+				android:paddingRight="8dp"
+				android:gravity="center_horizontal|center_vertical"
+				android:text="Open"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:layout_weight="1"
+				android:layout_marginEnd="4dp" />
+			<com.google.android.material.button.MaterialButton
+				android:id="@+id/btnLock"
+				android:layout_width="wrap_content"
+				android:layout_height="40dp"
+				android:paddingLeft="8dp"
+				android:paddingRight="8dp"
+				android:gravity="center_horizontal|center_vertical"
+				android:text="Lock"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:layout_weight="1"
+				android:layout_marginEnd="4dp" />
+			<com.google.android.material.button.MaterialButton
+				android:id="@+id/btnCancel"
+				android:layout_width="wrap_content"
+				android:layout_height="40dp"
+				android:paddingLeft="8dp"
+				android:paddingRight="8dp"
+				android:gravity="center_horizontal|center_vertical"
+				android:text="Cancel"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:layout_weight="1"
+				android:layout_marginEnd="4dp" />
+			<com.google.android.material.button.MaterialButton
+				android:id="@+id/btnRemove"
+				android:layout_width="wrap_content"
+				android:layout_height="40dp"
+				android:paddingLeft="8dp"
+				android:paddingRight="8dp"
+				android:gravity="center_horizontal|center_vertical"
+				android:text="Remove"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:layout_weight="1" />
+		</LinearLayout>
+		<TextView
+			android:id="@+id/txtTime"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="3dp"
+			android:text="00:00"
+			android:textSize="12sp"
+			android:textStyle="bold"
+			android:layout_gravity="left"
+			android:focusable="false" />
+		<TextView
+			android:id="@+id/txtStatus"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="5dp"
+			android:text="Status: Pending"
+			android:textSize="12sp"
+			android:textStyle="bold"
+			android:textColor="#616161"
+			android:layout_gravity="right"
+			android:focusable="false" />
+	</LinearLayout>
+</LinearLayout>

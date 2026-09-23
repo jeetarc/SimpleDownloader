@@ -4,3 +4,6 @@ build/
 local.properties
 *.iml
 .DS_Store
+
+# Local signing keystore
+app/*.jks
