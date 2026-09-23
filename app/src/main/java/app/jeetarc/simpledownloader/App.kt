@@ -23,6 +23,8 @@ class App : Application() {
 		.setAutoRestore(true)
 		.enableSorting(true)
 		.build()
+
+		downloader.setDeleteOnRemoval(true);
 	}
 	
 	fun getDownloader(): SimpleDownloader {
