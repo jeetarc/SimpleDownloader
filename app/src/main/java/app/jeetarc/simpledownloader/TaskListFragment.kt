@@ -178,7 +178,7 @@ class TaskListFragment : Fragment() {
 				val pos = holder.bindingAdapterPosition
 				if (pos == RecyclerView.NO_POSITION) return@setOnClickListener
 				val task = getItem(pos)
-				if (task.outputUri == null) return
+				if (task.outputUri == null) return@setOnClickListener
 				
 				val contentView = Intent(Intent.ACTION_VIEW).apply {
 					setDataAndType(task.outputUri, task.mimeType)
