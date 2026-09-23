@@ -1,6 +1,6 @@
 name: Build APK
 
-#manual only
+# manual only
 on:
   workflow_dispatch:
 
