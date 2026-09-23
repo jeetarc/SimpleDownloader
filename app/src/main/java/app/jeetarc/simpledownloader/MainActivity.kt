@@ -14,6 +14,8 @@ import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
 
+import app.jeetarc.simpledownloader.databinding.MainBinding
+
 class MainActivity: AppCompatActivity() {
 	private lateinit var binding: MainBinding
 	private lateinit var navBarAdapter: NavBarAdapter
