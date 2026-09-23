@@ -10,11 +10,11 @@ package com.jeet.simpledownloader.util;
  * Formatting utilities for byte sizes, download speeds, estimated
  * remaining time, etc.
  */
-public final class Formatter {
+public class Formatter {
 	private Formatter() {}
 	
 	public static String formatBytes(long bytes) {
-		if (bytes < 0) return "--";
+		if (bytes < 0) return "0 B";
 		
 		final long KB = 1024L;
 		final long MB = KB * 1024L;
@@ -53,9 +53,7 @@ public final class Formatter {
 	}
 	
 	public static String formatRatio(String part, String total) {
-		if (part == null) part = "";
-		if (total == null) total = "";
-		return part + " / " + total;
+		return formatRatio(part, total, " / ");
 	}
 	
 	public static String formatDecimal(long bytes, long unit, int decimals) {
