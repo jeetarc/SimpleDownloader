@@ -24,7 +24,7 @@ class App : Application() {
 		.enableSorting(true)
 		.build()
 
-		downloader.setDeleteOnRemoval(true);
+		downloader.setDeleteOnRemoval(true)
 	}
 	
 	fun getDownloader(): SimpleDownloader {
