@@ -4,6 +4,14 @@
         name="Theme.SimpleDownloader"
         parent="Theme.Material3.DayNight.NoActionBar">
         <item
+            name="android:statusBarColor">@color/md_theme_background</item>
+        <item
+            name="android:navigationBarColor">@color/md_theme_background</item>
+        <item
+            name="android:windowLightStatusBar">?attr/isLightTheme</item>
+        <item
+            name="android:windowLightNavigationBar">?attr/isLightTheme</item>
+        <item
             name="colorPrimary">@color/md_theme_primary</item>
         <item
             name="colorOnPrimary">@color/md_theme_on_primary</item>
