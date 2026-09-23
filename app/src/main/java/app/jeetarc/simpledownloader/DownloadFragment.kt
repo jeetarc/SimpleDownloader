@@ -22,6 +22,8 @@ import com.google.gson.reflect.TypeToken
 import com.jeet.simpledownloader.DownloadRequest
 import com.jeet.simpledownloader.FileName
 
+import app.jeetarc.simpledownloader.databinding.DownloadFragmentBinding
+
 class DownloadFragment : Fragment() {
 	private lateinit var binding: DownloadFragmentBinding
 	private lateinit var prefsFolder: SharedPreferences
