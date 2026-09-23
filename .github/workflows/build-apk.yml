@@ -1,6 +1,6 @@
 name: Build APK
 
-# manual only
+#manual only
 on:
   workflow_dispatch:
 
@@ -18,10 +18,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ${{ runner.temp }}/release.jks
+
       - name: Build APK
         run: |
           chmod +x ./gradlew
           ./gradlew :app:assembleRelease --no-daemon
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
