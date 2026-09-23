@@ -23,6 +23,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import app.jeetarc.simpledownloader.databinding.ItemLayoutBinding
+import app.jeetarc.simpledownloader.databinding.TaskListFragmentBinding
+
 class TaskListFragment : Fragment() {
 	private lateinit var binding: TaskListFragmentBinding
 	private lateinit var adapter: RecyclerViewAdapter
