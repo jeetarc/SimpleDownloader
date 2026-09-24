@@ -19,10 +19,6 @@ import com.jeet.simpledownloader.Status
 import com.jeet.simpledownloader.TaskListObserver
 import com.jeet.simpledownloader.util.Formatter
 
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
 import app.jeetarc.simpledownloader.databinding.ItemLayoutBinding
 import app.jeetarc.simpledownloader.databinding.TaskListFragmentBinding
 
@@ -82,15 +78,10 @@ class TaskListFragment : Fragment() {
 	}
 	
 	inner class RecyclerViewAdapter : ListAdapter<DownloadTask, RecyclerViewAdapter.ViewHolder>(diffUtilCallback) {
-		private val PAYLOAD_TASK_UPDATE = Any()
+		private object PAYLOAD_TASK_UPDATE
 		
 		init {
 			setHasStableIds(true)
-		}
-		
-		private val timestampFormatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
-		private fun formatTimestamp(timestampMillis: Long): String {
-			return timestampFormatter.format(Date(timestampMillis))
 		}
 		
 		override fun getItemId(position: Int): Long {
@@ -107,55 +98,62 @@ class TaskListFragment : Fragment() {
 		}
 		
 		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-			val itemBinding = ItemLayoutBinding.inflate(LayoutInflater.from(parent.context),parent,false)
+			val itemBinding = ItemLayoutBinding.inflate(LayoutInflater.from(parent.context), parent, false)
 			return ViewHolder(itemBinding)
 		}
 		
-		override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+		private fun updateProgressViews(binding: ItemLayoutBinding, task: DownloadTask) {
+			
+            // Keeping file name here because this can resolve leater from the server (while connecting) for FileName.AUTO / FileName.TIME_BASED,
+            // if the URL doesn't include a proper file name or extension.
+            binding.txtFileName.text = task.fileName 
+            
+            binding.progressBar.progress = task.progress
+			binding.txtStatus.text = task.status.toString()
+			
+			if (task.isPaused) {
+				binding.iconPauseResume.setImageResource(R.drawable.icon_play_arrow_round)
+				binding.txtProgress.text = formatBytesRatio(task)
+				
+			} else if (task.isFailed) {
+				binding.iconPauseResume.setImageResource(R.drawable.icon_refresh_round)
+				binding.txtProgress.text = formatBytesRatio(task)
+				
+			} else if (task.isCancelled) {
+				binding.iconPauseResume.setImageResource(R.drawable.icon_block_round)
+				binding.txtProgress.text = formatBytesRatio(task)
+				
+			} else if (task.isComplete) {
+				binding.iconPauseResume.setImageResource(R.drawable.icon_done_round)
+				binding.txtProgress.text = Formatter.formatBytes(task.downloadedBytes)
+				
+			} else if (task.isActive) {
+				binding.iconPauseResume.setImageResource(R.drawable.icon_pause_round)
+				binding.txtProgress.text = "${formatBytesRatio(task)} • " + Formatter.formatSpeed(task.speed) + " • " + Formatter.formatEta(task.etaMs)
+				
+			} else if (task.isQueued) {
+				binding.iconPauseResume.setImageResource(R.drawable.icon_watch_later_outline)
+				binding.txtProgress.text = formatBytesRatio(task)
+				
+			} else {
+				binding.iconPauseResume.setImageResource(R.drawable.icon_watch_later_outline)
+				binding.txtProgress.text = formatBytesRatio(task)
+			}
+		}
+		
+		override fun onBindViewHolder(holder: ViewHolder, position: Int, payloads: MutableList<Any>) {
+			
+			if (payloads.contains(PAYLOAD_TASK_UPDATE)) {
+				updateProgressViews(holder.binding, getItem(position))
+				return
+			}
+			
 			val itemBinding = holder.binding
 			val task = getItem(position)
 			
-			itemBinding.progressBar.progress = task.progress.toInt()
-			itemBinding.txtFileName.text = task.fileName
-			itemBinding.txtStatus.text = task.status.toString()
-			itemBinding.txtTime.text = formatTimestamp(task.createdAt)
+			itemBinding.txtTime.text = Formatter.formatTime(task.createdAt, "yyyy-MM-dd HH:mm:ss.SSS")
+			updateProgressViews(itemBinding, task)
 			
-			when {
-				task.isPaused -> {
-					itemBinding.iconPauseResume.setImageResource(R.drawable.icon_play_arrow_round)
-					itemBinding.txtProgress.text = formatBytesRatio(task)
-				}
-				
-				task.isFailed -> {
-					itemBinding.iconPauseResume.setImageResource(R.drawable.icon_refresh_round)
-					itemBinding.txtProgress.text = formatBytesRatio(task)
-				}
-				
-				task.isCancelled -> {
-					itemBinding.iconPauseResume.setImageResource(R.drawable.icon_block_round)
-					itemBinding.txtProgress.text = formatBytesRatio(task)
-				}
-				
-				task.isComplete -> {
-					itemBinding.iconPauseResume.setImageResource(R.drawable.icon_done_round)
-					itemBinding.txtProgress.text = Formatter.formatBytes(task.downloadedBytes)
-				}
-				
-				task.isActive -> {
-					itemBinding.iconPauseResume.setImageResource(R.drawable.icon_pause_round)
-					itemBinding.txtProgress.text = "${formatBytesRatio(task)} • " + "${Formatter.formatSpeed(task.speed)} • " + Formatter.formatEta(task.etaMs)
-				}
-				
-				task.isQueued -> {
-					itemBinding.iconPauseResume.setImageResource(R.drawable.icon_watch_later_outline)
-					itemBinding.txtProgress.text = formatBytesRatio(task)
-				}
-				
-				else -> {
-					itemBinding.iconPauseResume.setImageResource(R.drawable.icon_watch_later_outline)
-					itemBinding.txtProgress.text = formatBytesRatio(task)
-				}
-			}
 			
 			itemBinding.iconPauseResume.setOnClickListener {
 				val pos = holder.bindingAdapterPosition
@@ -221,9 +219,10 @@ class TaskListFragment : Fragment() {
 				task.remove()
 			}
 		}
-		
+        
 		inner class ViewHolder(val binding: ItemLayoutBinding) : RecyclerView.ViewHolder(binding.root)
 	}
+	
 	
 	private fun formatBytesRatio(task: DownloadTask) : String {
 		return Formatter.formatRatio(Formatter.formatBytes(task.downloadedBytes), Formatter.formatBytes(task.totalBytes), " / ");
