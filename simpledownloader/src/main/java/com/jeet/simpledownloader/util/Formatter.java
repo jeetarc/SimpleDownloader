@@ -56,10 +56,10 @@ public class Formatter {
 	public static String formatTime(long timeMillis, String format) {
 		
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-			return DateTimeFormatter.ofPattern(format).withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(time));
+			return DateTimeFormatter.ofPattern(format).withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(timeMillis));
             
 		} else {
-			return new SimpleDateFormat(format, Locale.getDefault()).format(new Date(time));
+			return new SimpleDateFormat(format, Locale.getDefault()).format(new Date(timeMillis));
 		}
 	}
 	
