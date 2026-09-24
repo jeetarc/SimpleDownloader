@@ -7,10 +7,6 @@ package app.jeetarc.simpledownloader;
 */
 
 import android.app.Application
-import android.net.Uri
-import android.widget.Toast
-
-import com.jeet.simpledownloader.DownloadTask
 import com.jeet.simpledownloader.SimpleDownloader
 
 class App : Application() {
@@ -32,23 +28,9 @@ class App : Application() {
 		.build()
         
 		downloader.setDeleteOnRemoval(true)
-        
-		downloader.addListener(object : SimpleDownloader.Listener {
-			override fun onComplete(outputUri: Uri, task: DownloadTask) {
-				showToast("Download complete!")
-			}
-			
-			override fun onError(outputUri: Uri, err: Exception, task: DownloadTask) {
-                showToast("Download failed: " + err.message)
-			}
-		})
 	}
 	
 	fun getDownloader(): SimpleDownloader {
 		return downloader
-	}
-	
-    private fun showToast(message: String) {
-		Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
 	}
 }
