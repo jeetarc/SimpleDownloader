@@ -6,10 +6,18 @@ package com.jeet.simpledownloader.util;
 * This source code is part of SimpleDownloader.
 */
 
+import android.os.Build;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+import java.util.Locale;
+
 /**
- * Formatting utilities for byte sizes, download speeds, estimated
- * remaining time, etc.
- */
+* Formatting utilities for byte sizes, download speeds, estimated
+* remaining time, etc.
+*/
 public class Formatter {
 	private Formatter() {}
 	
@@ -30,20 +38,30 @@ public class Formatter {
 		if (bytesPerSec <= 0) return "0 B/s";
 		return formatBytes(bytesPerSec) + "/s";
 	}
-    
-    public static String formatEta(long etaMs) {
-        if (etaMs < 0) return "...";
-
-        long totalSeconds = etaMs / 1000L;
-        if (totalSeconds < 60) return totalSeconds + "s";
-        long totalMinutes = totalSeconds / 60L;
-        long remainingSeconds = totalSeconds % 60L;
-        
-        if (totalMinutes < 60) return totalMinutes + "m " + remainingSeconds + "s";
-        long hours = totalMinutes / 60L;
-        long remainingMinutes = totalMinutes % 60L;
-        return hours + "h " + remainingMinutes + "m";
-    }
+	
+	public static String formatEta(long etaMs) {
+		if (etaMs < 0) return "...";
+		
+		long totalSeconds = etaMs / 1000L;
+		if (totalSeconds < 60) return totalSeconds + "s";
+		long totalMinutes = totalSeconds / 60L;
+		long remainingSeconds = totalSeconds % 60L;
+		
+		if (totalMinutes < 60) return totalMinutes + "m " + remainingSeconds + "s";
+		long hours = totalMinutes / 60L;
+		long remainingMinutes = totalMinutes % 60L;
+		return hours + "h " + remainingMinutes + "m";
+	}
+	
+	public static String formatTime(long timeMillis, String format) {
+		
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+			return DateTimeFormatter.ofPattern(format).withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(time));
+            
+		} else {
+			return new SimpleDateFormat(format, Locale.getDefault()).format(new Date(time));
+		}
+	}
 	
 	public static String formatRatio(String part, String total, String separator) {
 		if (part == null) part = "";
