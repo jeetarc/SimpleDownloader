@@ -111,9 +111,8 @@ class TaskListFragment : Fragment() {
 		}
 		
 		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-			val view = LayoutInflater.from(requireContext()).inflate(R.layout.item_layout, null)
-			view.layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-			return ViewHolder(ItemLayoutBinding.bind(view))
+			val itemBinding = ItemLayoutBinding.inflate(LayoutInflater.from(parent.context),parent,false)
+			return ViewHolder(itemBinding)
 		}
 		
 		private fun updateProgressViews(binding: ItemLayoutBinding, task: DownloadTask) {
