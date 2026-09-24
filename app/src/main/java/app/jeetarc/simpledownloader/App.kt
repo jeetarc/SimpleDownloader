@@ -33,7 +33,7 @@ class App : Application() {
         
 		downloader.setDeleteOnRemoval(true)
         
-		downloader.addListener(object : SimpleDownloader.Listener() {
+		downloader.addListener(object : SimpleDownloader.Listener {
 			override fun onComplete(outputUri: Uri, task: DownloadTask) {
 				showToast("Download complete!")
 			}
