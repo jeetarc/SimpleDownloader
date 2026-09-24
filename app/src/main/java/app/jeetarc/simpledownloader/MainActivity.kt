@@ -11,8 +11,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.viewpager2.adapter.FragmentStateAdapter
-import androidx.viewpager2.widget.ViewPager2
+import androidx.fragment.app.FragmentStatePagerAdapter
+import androidx.fragment.app.FragmentManager
+import androidx.viewpager.widget.ViewPager
 
 import app.jeetarc.simpledownloader.databinding.MainBinding
 
@@ -27,7 +28,7 @@ class MainActivity: AppCompatActivity() {
 		setContentView(binding.root)
 		selectedItemPref = getSharedPreferences("selected item", MODE_PRIVATE)
 		
-        binding.bottomNav.menu.clear()
+		binding.bottomNav.menu.clear()
 		binding.bottomNav.menu.add(0, 0, 0, "Input").setIcon(R.drawable.icon_add_link_outline)
 		binding.bottomNav.menu.add(0, 1, 1, "Tasks").setIcon(R.drawable.icon_dynamic_feed_outline)
 		binding.bottomNav.itemActiveIndicatorColor = ColorStateList.valueOf(Color.TRANSPARENT)
@@ -36,26 +37,29 @@ class MainActivity: AppCompatActivity() {
 			binding.viewPagerNav.setCurrentItem(item.itemId, true)
 			true
 		}
-        
+		
 		setupViewPager()
 		requestNotificationPermission()
 	}
 	
 	private fun setupViewPager() {
-		navBarAdapter = NavBarAdapter(this)
+		navBarAdapter = NavBarAdapter(supportFragmentManager)
 		binding.viewPagerNav.adapter = navBarAdapter
 		
-		binding.viewPagerNav.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+		binding.viewPagerNav.addOnPageChangeListener(object : ViewPager.OnPageChangeListener {
+			override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {}
+			
 			override fun onPageSelected(position: Int) {
-				super.onPageSelected(position)
 				binding.bottomNav.menu.findItem(position).isChecked = true
 				selectedItemPref.edit().putInt("selectedItem", position).apply()
 			}
+			
+			override fun onPageScrollStateChanged(state: Int) {}
 		})
-        
-        val selectedItem = selectedItemPref.getInt("selectedItem", 0)
-		binding.viewPagerNav.setCurrentItem(selectedItem, false)
-        binding.bottomNav.menu.findItem(selectedItem)?.isChecked = true
+		
+		val selectedItem = selectedItemPref.getInt("selectedItem", 0)
+		binding.viewPagerNav.currentItem = selectedItem
+		binding.bottomNav.menu.findItem(selectedItem)?.isChecked = true
 	}
 	
 	private fun requestNotificationPermission() {
@@ -64,10 +68,10 @@ class MainActivity: AppCompatActivity() {
 		}
 	}
 	
-	private class NavBarAdapter(activity: MainActivity) : FragmentStateAdapter(activity) {
-		override fun getItemCount(): Int = 2
+	private class NavBarAdapter(fragmentManager: FragmentManager) : FragmentStatePagerAdapter(fragmentManager) {
+		override fun getCount(): Int = 2
 		
-		override fun createFragment(position: Int): Fragment {
+		override fun getItem(position: Int): Fragment {
 			return when (position) {
 				0 -> DownloadFragment()
 				1 -> TaskListFragment()
