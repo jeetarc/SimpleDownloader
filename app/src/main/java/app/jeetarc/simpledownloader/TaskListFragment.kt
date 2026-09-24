@@ -78,7 +78,7 @@ class TaskListFragment : Fragment() {
 	}
 	
 	inner class RecyclerViewAdapter : ListAdapter<DownloadTask, RecyclerViewAdapter.ViewHolder>(diffUtilCallback) {
-		private object PAYLOAD_TASK_UPDATE
+		private val PAYLOAD_TASK_UPDATE = Any()
 		
 		init {
 			setHasStableIds(true)
@@ -104,11 +104,11 @@ class TaskListFragment : Fragment() {
 		
 		private fun updateProgressViews(binding: ItemLayoutBinding, task: DownloadTask) {
 			
-            // Keeping file name here because this can resolve leater from the server (while connecting) for FileName.AUTO / FileName.TIME_BASED,
-            // if the URL doesn't include a proper file name or extension.
-            binding.txtFileName.text = task.fileName 
-            
-            binding.progressBar.progress = task.progress
+			// Keeping file name here because this can resolve leater from the server (while connecting) for FileName.AUTO / FileName.TIME_BASED,
+			// if the URL doesn't include a proper file name or extension.
+			binding.txtFileName.text = task.fileName 
+			
+			binding.progressBar.progress = task.progress
 			binding.txtStatus.text = task.status.toString()
 			
 			if (task.isPaused) {
@@ -141,13 +141,7 @@ class TaskListFragment : Fragment() {
 			}
 		}
 		
-		override fun onBindViewHolder(holder: ViewHolder, position: Int, payloads: MutableList<Any>) {
-			
-			if (payloads.contains(PAYLOAD_TASK_UPDATE)) {
-				updateProgressViews(holder.binding, getItem(position))
-				return
-			}
-			
+		override fun onBindViewHolder(holder: ViewHolder, position: Int) {
 			val itemBinding = holder.binding
 			val task = getItem(position)
 			
@@ -181,7 +175,6 @@ class TaskListFragment : Fragment() {
 				val contentView = Intent(Intent.ACTION_VIEW).apply {
 					setDataAndType(task.outputUri, task.mimeType)
 					addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 				}
 				
 				try {
@@ -220,7 +213,16 @@ class TaskListFragment : Fragment() {
 				task.remove()
 			}
 		}
-        
+		
+		override fun onBindViewHolder(holder: ViewHolder, position: Int, payloads: MutableList<Any>) {
+			if (payloads.contains(PAYLOAD_TASK_UPDATE)) {
+				updateProgressViews(holder.binding, getItem(position))
+				return
+			}
+			
+			super.onBindViewHolder(holder, position, payloads)
+		}
+		
 		inner class ViewHolder(val binding: ItemLayoutBinding) : RecyclerView.ViewHolder(binding.root)
 	}
 	
