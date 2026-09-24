@@ -1,8 +1,6 @@
 package app.jeetarc.simpledownloader;
 
 import android.app.Application
-import android.content.Context
-
 import com.jeet.simpledownloader.SimpleDownloader
 
 class App : Application() {
@@ -10,7 +8,6 @@ class App : Application() {
 	
 	override fun onCreate() {
 		super.onCreate()
-		applicationContextRef = applicationContext
 		
 		downloader = SimpleDownloader.Builder(applicationContext)
 		.setMaxConcurrent(3)
@@ -31,10 +28,4 @@ class App : Application() {
 		return downloader
 	}
 	
-	companion object {
-		private lateinit var applicationContextRef: Context
-		fun getContext(): Context {
-			return applicationContextRef
-		}
-	}
 }
