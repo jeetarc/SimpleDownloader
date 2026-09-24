@@ -1,5 +1,11 @@
 package app.jeetarc.simpledownloader
 
+/*
+* Copyright (c) 2026 Jeet / Jeetarc.
+*
+* This source code is part of SimpleDownloader.
+*/
+
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
@@ -28,6 +34,7 @@ class TaskListFragment : Fragment() {
 	private lateinit var observer: TaskListObserver
 	private lateinit var app: App
 	private lateinit var diffUtilCallback: DiffUtil.ItemCallback<DownloadTask>
+	private var previousTaskCount = 0
 	
 	override fun onCreateView(inflater: LayoutInflater,container: ViewGroup?, savedInstanceState: Bundle?): View {
 		binding = TaskListFragmentBinding.inflate(inflater, container,false)
@@ -48,8 +55,14 @@ class TaskListFragment : Fragment() {
 	
 	private fun setupTaskObserver() {
 		observer = object : TaskListObserver {
+			
 			override fun onTasksChanged(size: Int, tasks: List<DownloadTask>) {
-				adapter.submitList(tasks)
+				val taskAdded = size > previousTaskCount
+				previousTaskCount = size
+				
+				adapter.submitList(tasks) {
+					if (taskAdded) binding.recyclerView.scrollToPosition(0)
+				}
 			}
 			
 			override fun onTaskUpdated(id: Long, task: DownloadTask) {
@@ -98,13 +111,14 @@ class TaskListFragment : Fragment() {
 		}
 		
 		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-			val itemBinding = ItemLayoutBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-			return ViewHolder(itemBinding)
+			val view = LayoutInflater.from(requireContext()).inflate(R.layout.item_layout, null)
+			view.layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+			return ViewHolder(ItemLayoutBinding.bind(view))
 		}
 		
 		private fun updateProgressViews(binding: ItemLayoutBinding, task: DownloadTask) {
 			
-			// Keeping file name here because this can resolve leater from the server (while connecting) for FileName.AUTO / FileName.TIME_BASED,
+			// Keeping the file name here because this can resolve leater from the server (while connecting) for FileName.AUTO / FileName.TIME_BASED,
 			// if the URL doesn't include a proper file name or extension.
 			binding.txtFileName.text = task.fileName 
 			
