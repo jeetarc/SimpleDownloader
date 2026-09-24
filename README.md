@@ -31,7 +31,7 @@ DownloadTask task = SimpleDownloader.getInstance(context)
 </table>
 
 **Sample APK to test:**
-(SimpleDownloader-sample-1.0.1.apk)[https://github.com/jeetarc/SimpleDownloader/releases/download/1.0.1/SimpleDownloader-1.0.1.apk]
+[SimpleDownloader-sample-1.0.1.apk](https://github.com/jeetarc/SimpleDownloader/releases/download/1.0.1/SimpleDownloader-1.0.1.apk)
 
 ## Features
 
