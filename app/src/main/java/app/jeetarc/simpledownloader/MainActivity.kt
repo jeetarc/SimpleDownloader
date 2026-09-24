@@ -1,19 +1,30 @@
 package app.jeetarc.simpledownloader;
 
+/*
+* Copyright (c) 2026 Jeet / Jeetarc.
+*
+* This source code is part of SimpleDownloader.
+*/
+
 import android.Manifest
 import android.content.SharedPreferences
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.content.res.ColorStateList
+import android.widget.Toast
 
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentStatePagerAdapter
 import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.FragmentStatePagerAdapter
 import androidx.viewpager.widget.ViewPager
+
+import com.jeet.simpledownloader.DownloadTask
+import com.jeet.simpledownloader.SimpleDownloader
 
 import app.jeetarc.simpledownloader.databinding.MainBinding
 
@@ -21,11 +32,13 @@ class MainActivity: AppCompatActivity() {
 	private lateinit var binding: MainBinding
 	private lateinit var navBarAdapter: NavBarAdapter
 	private lateinit var selectedItemPref: SharedPreferences
+	private lateinit var app: App
 	
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		binding = MainBinding.inflate(layoutInflater)
 		setContentView(binding.root)
+		app = application as App
 		selectedItemPref = getSharedPreferences("selected item", MODE_PRIVATE)
 		
 		binding.bottomNav.menu.clear()
@@ -39,6 +52,7 @@ class MainActivity: AppCompatActivity() {
 		}
 		
 		setupViewPager()
+		setupDownloaderListener()
 		requestNotificationPermission()
 	}
 	
@@ -47,19 +61,35 @@ class MainActivity: AppCompatActivity() {
 		binding.viewPagerNav.adapter = navBarAdapter
 		
 		binding.viewPagerNav.addOnPageChangeListener(object : ViewPager.OnPageChangeListener {
-			override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {}
+			override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {
+				
+			}
 			
 			override fun onPageSelected(position: Int) {
 				binding.bottomNav.menu.findItem(position).isChecked = true
 				selectedItemPref.edit().putInt("selectedItem", position).apply()
 			}
 			
-			override fun onPageScrollStateChanged(state: Int) {}
+			override fun onPageScrollStateChanged(state: Int) {
+				
+			}
 		})
 		
 		val selectedItem = selectedItemPref.getInt("selectedItem", 0)
 		binding.viewPagerNav.currentItem = selectedItem
 		binding.bottomNav.menu.findItem(selectedItem)?.isChecked = true
+	}
+	
+	private fun setupDownloaderListener() {
+		app.getDownloader().addListener(object : SimpleDownloader.Listener {
+			override fun onComplete(outputUri: Uri, task: DownloadTask) {
+				showToast("Download complete!")
+			}
+			
+			override fun onError(outputUri: Uri, err: Exception, task: DownloadTask) {
+				showToast("Download failed: " + err.message)
+			}
+		})
 	}
 	
 	private fun requestNotificationPermission() {
@@ -78,5 +108,14 @@ class MainActivity: AppCompatActivity() {
 				else -> throw IllegalStateException("Invalid page position: $position")
 			}
 		}
+	}
+	
+	override fun onDestroy() {
+		app.getDownloader().releaseAllCallbacks()
+		super.onDestroy()
+	}
+	
+	private fun showToast(message: String) {
+		Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 	}
 }
