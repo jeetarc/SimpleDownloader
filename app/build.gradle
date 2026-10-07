@@ -3,8 +3,8 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
-def appVersionName = "1.0.1" // version name
-def appVersionCode = 101 // version code
+def appVersionName = "1.0.2" // version name
+def appVersionCode = 102 // version code
 
 android {
     namespace 'app.jeetarc.simpledownloader'
