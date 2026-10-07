@@ -20,10 +20,10 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 
-import com.jeet.simpledownloader.DownloadTask
-import com.jeet.simpledownloader.Status
-import com.jeet.simpledownloader.TaskListObserver
-import com.jeet.simpledownloader.util.Formatter
+import com.jeetarc.simpledownloader.DownloadTask
+import com.jeetarc.simpledownloader.Status
+import com.jeetarc.simpledownloader.TaskListObserver
+import com.jeetarc.simpledownloader.util.Formatter
 
 import app.jeetarc.simpledownloader.databinding.ItemLayoutBinding
 import app.jeetarc.simpledownloader.databinding.TaskListFragmentBinding
