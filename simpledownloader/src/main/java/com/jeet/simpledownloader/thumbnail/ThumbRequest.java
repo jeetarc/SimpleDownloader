@@ -1,4 +1,4 @@
-package com.jeetarc.simpledownloader.thumbnail;
+package com.jeet.simpledownloader.thumbnail;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -10,7 +10,6 @@ import android.net.Uri;
 import java.io.File;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
-
 
 public final class ThumbRequest {
 	private static final long KB = 1024L;

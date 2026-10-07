@@ -1,4 +1,4 @@
-package com.jeetarc.simpledownloader;
+package com.jeet.simpledownloader;
 
 /*
 
@@ -8,29 +8,26 @@ This source code is part of SimpleDownloader.
 */
 
 import android.content.Context;
-import android.content.ContentValues;
-import android.content.ContentResolver;
-import android.content.ContentUris;
-import android.database.Cursor;
 import android.net.Uri;
-import android.os.Bundle;
-import android.os.Build;
-import android.os.ParcelFileDescriptor;
-import android.os.Environment;
-import android.provider.MediaStore;
 import androidx.core.content.FileProvider;
 import androidx.documentfile.provider.DocumentFile;
-
-import com.jeetarc.simpledownloader.util.Logs;
-import com.jeetarc.simpledownloader.util.TypeResolver;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
-
+import android.content.ContentValues;
+import android.os.Build;
+import android.os.ParcelFileDescriptor;
+import android.provider.MediaStore;
+import android.os.Environment;
+import android.content.ContentResolver;
+import android.content.ContentUris;
+import android.database.Cursor;
+import android.os.Bundle;
+import com.jeet.simpledownloader.util.TypeResolver;
+import com.jeet.simpledownloader.util.Logs;
 
 final class OutputResolver {
 	private static final Map<String, Object> sFolderLocks = new HashMap<>();

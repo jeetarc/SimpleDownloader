@@ -1,4 +1,4 @@
-package com.jeetarc.simpledownloader;
+package com.jeet.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -7,22 +7,20 @@ package com.jeetarc.simpledownloader;
 */
 
 import android.graphics.Bitmap;
-import com.jeetarc.simpledownloader.thumbnail.ThumbLoader;
-import com.jeetarc.simpledownloader.util.SpeedHelper;
-import com.jeetarc.simpledownloader.util.EtaHelper;
-import com.jeetarc.simpledownloader.util.Logs;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.security.MessageDigest;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.ThreadLocalRandom;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import javax.net.ssl.SSLException;
-
+import java.security.MessageDigest;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ThreadLocalRandom;
+import com.jeet.simpledownloader.thumbnail.ThumbLoader;
+import com.jeet.simpledownloader.util.SpeedHelper;
+import com.jeet.simpledownloader.util.EtaHelper;
+import com.jeet.simpledownloader.util.Logs;
 
 final class DownloadWorker {
 	private final DownloadTask task;
@@ -188,7 +186,7 @@ final class DownloadWorker {
 			task.setStatus(Status.PAUSED);
 			EventDispatcher.onPaused(task);
 			task.mPauseRequested = false;
-			slotManager.finishTask(task, false, !downloader.mHoldSlotOnPause);
+			slotManager.finishTask(task, false, false);
 			
 		} else if (task.mNetworkPaused) {
 			task.mNetworkPaused = false;

@@ -1,7 +1,7 @@
-package com.jeetarc.simpledownloader;
+package com.jeet.simpledownloader;
 
 /*
-* Copyright (c) 2026 Jeet / under jeetarc.
+* Copyright (c) 2026 Jeet / under Jeetarc.
 *
 * This source code is part of SimpleDownloader.
 */

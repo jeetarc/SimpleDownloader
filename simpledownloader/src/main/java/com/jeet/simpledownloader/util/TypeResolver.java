@@ -1,4 +1,4 @@
-package com.jeetarc.simpledownloader.util;
+package com.jeet.simpledownloader.util;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -13,7 +13,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-
 
 /**
  * Resolves file extensions and MIME types.
@@ -93,7 +92,7 @@ public final class TypeResolver {
 	
 	private TypeResolver() {}
 	
-	/** Returns lowercase extension without dot. */
+	// Returns lowercase extension without dot.
 	public static String getExtension(String name) {
 		if (name == null) return "";
 		String cleanName = name.trim();
@@ -161,6 +160,22 @@ public final class TypeResolver {
 	
 	public static String getMimeFromUrl(String url) {
 		return getMimeFromExtension(getExtensionFromUrl(url));
+	}
+	
+	
+	// Useing ContentResolver.
+	public static String getMime(ContentResolver resolver, Uri uri) {
+		if (uri == null) return "";
+		
+		if (resolver != null && ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
+			String mime = normalizeMime(resolver.getType(uri));
+			if (!mime.isEmpty()) return mime;
+		}
+		
+		String mime = getMimeFromUrl(uri.toString());
+		if (!mime.isEmpty()) return mime;
+		
+		return getMimeFromName(uri.getPath());
 	}
 	
 	public static boolean hasExtension(String extension) {

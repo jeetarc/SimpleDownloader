@@ -1,4 +1,4 @@
-package com.jeetarc.simpledownloader;
+package com.jeet.simpledownloader;
 
 /*
  * Copyright (c) 2026 Jeet / Jeetarc.
