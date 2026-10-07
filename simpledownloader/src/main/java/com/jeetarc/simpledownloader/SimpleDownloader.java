@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -8,9 +8,13 @@ package com.jeet.simpledownloader;
 
 import android.app.ActivityManager;
 import android.content.Context;
-import android.os.Looper;
 import android.net.Uri;
+import android.os.Looper;
 import androidx.annotation.Nullable;
+
+import com.jeetarc.simpledownloader.thumbnail.ThumbLoader;
+import com.jeetarc.simpledownloader.util.Logs;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -25,13 +29,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import okhttp3.OkHttpClient;
-import com.jeet.simpledownloader.thumbnail.ThumbLoader;
-import com.jeet.simpledownloader.util.Logs;
+
 
 /**
 * Main entry point for starting, restoring, and managing downloads.
 *
-* <p>Each instance is independent. Runtime task state, observers, listeners,
+* <p>Each instance is independent. Runtime task state, observers, listenerteners,
 * session/slot state, network state and adaptive mode belong to the instance.
 * The task database is shared by all instances.</p>
 */
@@ -54,7 +57,7 @@ public class SimpleDownloader {
 	private static final Set<SimpleDownloader> INSTANCES = new HashSet<SimpleDownloader>();
 	private static final AtomicLong NEXT_TASK_ID = new AtomicLong(System.currentTimeMillis());
 	private static final ExecutorService ADAPTIVE_DISPATCH_EXECUTOR = Executors.newSingleThreadExecutor();
-    static final ExecutorService OUTPUT_VALIDATION_EXECUTOR = Executors.newCachedThreadPool();
+	static final ExecutorService OUTPUT_VALIDATION_EXECUTOR = Executors.newCachedThreadPool();
 	private static final AtomicInteger GLOBAL_MANUAL_OCCUPIED = new AtomicInteger();
 	private static final AtomicInteger GLOBAL_AUTO_OCCUPIED = new AtomicInteger();
 	private static final AutoConcurrencyController AUTO_CONCURRENCY_CONTROLLER = new AutoConcurrencyController();
@@ -76,87 +79,33 @@ public class SimpleDownloader {
 	
 	/** Receives updates from every task owned by this downloader. */
 	public interface Listener {
-		default void onStart(DownloadTask task) { onStart(task.getId(), task); }
-		default void onQueued(int position, DownloadTask task) { onQueued(task.getId(), position, task); }
-		default void onProgress(int progress, long speed, long etaMs, DownloadTask task) { onProgress(task.getId(), progress, speed, etaMs, task); }
-		default void onPaused(DownloadTask task) { onPaused(task.getId(), task); }
-		default void onResumed(DownloadTask task) { onResumed(task.getId(), task); }
-		default void onCancelled(DownloadTask task) { onCancelled(task.getId(), task); }
-		default void onComplete(Uri outputUri, DownloadTask task) { onComplete(task.getId(), outputUri, task); }
-		default void onError(Uri outputUri, Exception error, DownloadTask task) { onError(task.getId(), outputUri, error, task); }
-		default void onRemoved(boolean outputDeleted, DownloadTask task) { onRemoved(task.getId(), outputDeleted, task); }
-		default void onRetry(int attempt, DownloadTask task) { onRetry(task.getId(), attempt, task); }
-		default void onWaitingForNetwork(int networkType, DownloadTask task) { onWaitingForNetwork(task.getId(), networkType, task); }
-		default void onStatusChanged(Status status, DownloadTask task) { onStatusChanged(task.getId(), status, task); }
-		default void onActiveChanged(boolean isActive, DownloadTask task) { onActiveChanged(task.getId(), isActive, task); }
-		default void onLifecycleChanged(int lifecycle, DownloadTask task) { onLifecycleChanged(task.getId(), lifecycle, task); }
-
-		/** @deprecated Use {@link #onStart(DownloadTask)} */
-		@Deprecated
-		default void onStart(long id, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onQueued(int, DownloadTask)} */
-		@Deprecated
-		default void onQueued(long id, int position, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onProgress(int, long, long, DownloadTask)} */
-		@Deprecated
-		default void onProgress(long id, int progress, long speed, long etaMs, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onPaused(DownloadTask)} */
-		@Deprecated
-		default void onPaused(long id, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onResumed(DownloadTask)} */
-		@Deprecated
-		default void onResumed(long id, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onCancelled(DownloadTask)} */
-		@Deprecated
-		default void onCancelled(long id, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onComplete(Uri, DownloadTask)} */
-		@Deprecated
-		default void onComplete(long id, Uri outputUri, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onError(Uri, Exception, DownloadTask)} */
-		@Deprecated
-		default void onError(long id, Uri outputUri, Exception error, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onRemoved(boolean, DownloadTask)} */
-		@Deprecated
-		default void onRemoved(long id, boolean outputDeleted, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onRetry(int, DownloadTask)} */
-		@Deprecated
-		default void onRetry(long id, int attempt, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onWaitingForNetwork(int, DownloadTask)} */
-		@Deprecated
-		default void onWaitingForNetwork(long id, int networkType, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onStatusChanged(Status, DownloadTask)} */
-		@Deprecated
-		default void onStatusChanged(long id, Status status, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onActiveChanged(boolean, DownloadTask)} */
-		@Deprecated
-		default void onActiveChanged(long id, boolean isActive, DownloadTask task) {}
-
-		/** @deprecated Use {@link #onLifecycleChanged(int, DownloadTask)} */
-		@Deprecated
-		default void onLifecycleChanged(long id, int lifecycle, DownloadTask task) {}
+		default void onStart(DownloadTask task) {}
+		default void onQueued(int position, DownloadTask task) {}
+		default void onProgress(int progress, long speed, long etaMs, DownloadTask task) {}
+		default void onPaused(DownloadTask task) {}
+		default void onResumed(DownloadTask task) {}
+		default void onCancelled(DownloadTask task) {}
+		default void onComplete(Uri outputUri, DownloadTask task) {}
+		default void onError(Uri outputUri, Exception error, DownloadTask task) {}
+		default void onRemoved(boolean outputDeleted, DownloadTask task) {}
+		default void onRetry(int attempt, DownloadTask task) {}
+		default void onWaitingForNetwork(int networkType, DownloadTask task) {}
+		default void onStatusChanged(Status status, DownloadTask task) {}
+		default void onActiveChanged(boolean isActive, DownloadTask task) {}
+		default void onLifecycleChanged(int lifecycle, DownloadTask task) {}
 	}
 	
 	volatile DownloadNotification mNotification = new DownloadNotification();
 	private volatile int mMaxConcurrent = 0;
 	private volatile int mEffectiveMaxConcurrent = AUTO_MIN_SLOT;
 	volatile boolean mDownloadOnSlotFree = true;
+	volatile boolean mHoldSlotOnPause = false;
 	volatile boolean mEnableHistory = false;
 	private volatile boolean mNotificationsEnabled;
 	private volatile boolean mForegroundEnabled;
-	private volatile boolean mAutoRestore;
+	private volatile boolean mAutoRestore = true;
 	private volatile boolean mAutoRestoreDone;
+	volatile boolean mRestoreAutoDispatchBlocked;
 	private volatile boolean mResumeOnNetworkGain = true;
 	volatile int mConnectTimeout = 15_000;
 	volatile int mReadTimeout = 30_000;
@@ -195,8 +144,6 @@ public class SimpleDownloader {
 			networkManager.setRetryOnNetworkGain(false);
 			
 			if (config.httpClient != null) httpEngine.setClient(config.httpClient);
-			else applyTimeoutConfigurationLocked();
-			
 			taskManager.setSortingEnabled(config.sortingEnabled);
 			if (config.taskComparator != null) taskManager.setTaskComparator(config.taskComparator);
 			configureEffectiveConcurrencyLocked();
@@ -222,7 +169,7 @@ public class SimpleDownloader {
 		private final Context context;
 		private String ownerId;
 		private OkHttpClient httpClient;
-		private boolean autoRestore;
+		private boolean autoRestore = true;
 		private boolean restoreAll;
 		private boolean restoreFiltered;
 		private TaskField<?> restoreField;
@@ -240,6 +187,7 @@ public class SimpleDownloader {
 		private int bufferSize = 16 * 1024;
 		private RetryPolicy retryPolicy = RetryPolicy.builder().build();
 		private boolean downloadOnSlotFree = true;
+        private boolean holdSlotOnPause = false;
 		private boolean resumeOnNetworkGain = true;
 		private SimpleDownloader builtDownloader;
 		
@@ -248,7 +196,7 @@ public class SimpleDownloader {
 			this.context = context.getApplicationContext();
 		}
 		
-		/** Sets a persistent downloader/profile identity. Null or blank uses the built-in default owner. */
+		/** Sets a downloader/profile identity. Null or blank uses the built-in default owner. */
 		public Builder setOwnerId(String ownerId) {
 			String value = ownerId == null ? null : ownerId.trim();
 			this.ownerId = value == null || value.length() == 0 ? DEFAULT_OWNER_ID : value;
@@ -285,6 +233,11 @@ public class SimpleDownloader {
 		
 		public Builder setNotification(DownloadNotification notification) {
 			this.notification = notification == null ? null : new DownloadNotification(notification);
+			return this;
+		}
+		
+		public Builder setHoldSlotOnPause(boolean enable) {
+			holdSlotOnPause = enable;
 			return this;
 		}
 		
@@ -332,6 +285,7 @@ public class SimpleDownloader {
 		
 		public Builder restoreTasks() {
 			restoreAll = true;
+            autoRestore = false;
 			return this;
 		}
 		
@@ -340,6 +294,7 @@ public class SimpleDownloader {
 			restoreFiltered = true;
 			restoreField = field;
 			restoreValue = value;
+            autoRestore = false;
 			return this;
 		}
 		
@@ -388,6 +343,7 @@ public class SimpleDownloader {
 			downloader.setBufferSize(bufferSize);
 			downloader.setRetryPolicy(retryPolicy);
 			downloader.setDownloadOnSlotFree(downloadOnSlotFree);
+			downloader.setHoldSlotOnPause(holdSlotOnPause);
 			downloader.enableResumeOnNetworkGain(resumeOnNetworkGain);
 			
 			if (autoRestore) downloader.restoreTasksInternal(true, null, null);
@@ -604,13 +560,13 @@ public class SimpleDownloader {
 		return taskManager.getTasks();
 	}
 	
+	public <T> List<DownloadTask> getTasks(TaskField<T> field, T value) {
+		return taskManager.getTasks(field, value);
+	}
+	
 	@Nullable
 	public <T> DownloadTask getTask(TaskField<T> field, T value) {
 		return taskManager.getTask(field, value);
-	}
-	
-	public <T> List<DownloadTask> getTasks(TaskField<T> field, T value) {
-		return taskManager.getTasks(field, value);
 	}
 	
 	public SimpleDownloader setMaxConcurrent(int max) {
@@ -722,6 +678,14 @@ public class SimpleDownloader {
 		return this;
 	}
 	
+	public SimpleDownloader setHoldSlotOnPause(boolean enable) {
+		synchronized (mLock) {
+			ensureNotShutdownLocked();
+			mHoldSlotOnPause = enable;
+		}
+		return this;
+	}
+	
 	List<Listener> getListenersSnapshot() {
 		return new ArrayList<Listener>(mDefaultListeners);
 	}
@@ -729,6 +693,14 @@ public class SimpleDownloader {
 	public SimpleDownloader addListener(Listener listener) {
 		if (listener != null && !mDefaultListeners.contains(listener)) mDefaultListeners.add(listener);
 		return this;
+	}
+	
+	public boolean hasListeners() {
+		return !mDefaultListeners.isEmpty();
+	}
+	
+	public boolean hasListener(Listener listener) {
+		return listener != null && mDefaultListeners.contains(listener);
 	}
 	
 	public SimpleDownloader removeListener(Listener listener) {
@@ -745,6 +717,14 @@ public class SimpleDownloader {
 		if (observer != null) taskManager.addObserver(observer);
 		return this;
 	}
+    
+    public boolean hasObservers() {
+        return taskManager.hasObservers();
+    }
+    
+    public boolean hasObserver(TaskListObserver observer) {
+        return taskManager.hasObserver(observer);
+    }
 	
 	public SimpleDownloader removeObserver(TaskListObserver observer) {
 		taskManager.removeObserver(observer);
@@ -827,6 +807,7 @@ public class SimpleDownloader {
 		
 		taskDatabase.saveTask(task);
 		ensureAdaptiveInitializedLocked();
+        mRestoreAutoDispatchBlocked = false;
 		slotManager.enqueueOrSubmitLocked(task, false);
 		return task;
 	}
@@ -835,13 +816,13 @@ public class SimpleDownloader {
 		
 		synchronized (mLock) {
 			ensureNotShutdownLocked();
+			mRestoreAutoDispatchBlocked = !autoRestore;
 			List<TaskState> states;
-			
 			if (field == null) states = taskDatabase.loadTaskStatesForOwner(mOwnerId);
 			else states = loadTaskStatesForField(field, value);
 			List<DownloadTask> restored = taskManager.restoreTasks(this, states, autoRestore);
-			if (autoRestore) mAutoRestoreDone = true;
 			
+			if (autoRestore) mAutoRestoreDone = true;
 			return restored;
 		}
 	}
@@ -897,8 +878,8 @@ public class SimpleDownloader {
 	}
 	
 	static boolean hasGlobalCapacityLocked() {
-        return sGlobalConcurrent <= 0 || getGlobalManualOccupiedLocked() + getGlobalAutoOccupiedLocked() < sGlobalConcurrent;
-    }
+		return sGlobalConcurrent <= 0 || getGlobalManualOccupiedLocked() + getGlobalAutoOccupiedLocked() < sGlobalConcurrent;
+	}
 	
 	void validateNotificationConfigLocked() {
 		if (mForegroundEnabled && !mNotificationsEnabled) throw new IllegalStateException("Cannot run foreground without notifications.");
@@ -927,10 +908,6 @@ public class SimpleDownloader {
 	
 	private void ensureAdaptiveInitializedLocked() {
 		AUTO_CONCURRENCY_CONTROLLER.ensureInitializedLocked();
-	}
-	
-	private void applyTimeoutConfigurationLocked() {
-		// Request-level timeout clients are created lazily by HttpEngine.
 	}
 	
 	void ensureNotShutdownLocked() {
@@ -1091,7 +1068,7 @@ public class SimpleDownloader {
 	public void requeue(long id) { DownloadTask task = taskManager.getTask(id); if (task != null) task.requeue(); }
 	public void removeAll() { for (DownloadTask task : taskManager.snapshot()) if (task != null) task.remove(); }
 	public void remove(long id) { DownloadTask task = taskManager.getTask(id); if (task != null) task.remove(); }
-	public void remove(Status status) { for (DownloadTask task : taskManager.snapshot()) if (task != null && task.status == status) task.remove(); }
+	public void remove(Status status) { for (DownloadTask task : taskManager.snapshot()) if (task != null && task.mStatus == status) task.remove(); }
 	public void remove(Priority priority) { for (DownloadTask task : taskManager.snapshot()) if (task != null && task.mPriority == priority) task.remove(); }
 	public void retryAll() { for (DownloadTask task : taskManager.snapshot()) if (task != null) task.retry(); }
 	public void retry(long id) { DownloadTask task = taskManager.getTask(id); if (task != null) task.retry(); }
@@ -1109,63 +1086,31 @@ public class SimpleDownloader {
 	public static final class Database {
 		private Database() {}
 		
-		/**
-        * Deletes the persisted database data for a specific task.
-        *
-        * <p>This does not delete the downloaded file or remove the task
-        * from an active SimpleDownloader instance.</p>
-        *
-        * @param taskId the task ID
-        */		
+		/** Deletes the persisted database data for a specific task. This does not delete the downloaded file or remove the task from an active SimpleDownloader instance.*/		
 		public void deleteForTask(long taskId) {
 			TaskDatabase database = SHARED_DATABASE;
 			if (database != null) database.deleteForTask(taskId);
 		}
 		
-		/**
-        * Deletes all persisted database data belonging to the specified owner.
-        *
-        * <p>This does not delete downloaded files or remove tasks from active
-        * SimpleDownloader instances.</p>
-        *
-        * @param ownerId the owner ID
-        */		
+		/** Deletes all persisted database data belonging to the specified owner. This does not delete the downloaded file or remove the task from an active SimpleDownloader instance.*/		
 		public void deleteForOwner(String ownerId) {
 			TaskDatabase database = SHARED_DATABASE;
 			if (database != null) database.deleteForOwner(ownerId);
 		}
 		
-		/**
-        * Deletes all persisted database data belonging to the default owner.
-        *
-        * <p>This does not delete downloaded files or remove tasks from active
-        * SimpleDownloader instances.</p>
-        */		
+		/** Deletes all persisted database data belonging to the default owner. This does not delete the downloaded file or remove the task from an active SimpleDownloader instance.*/		
 		public void deleteForDefaultOwner() {
 			TaskDatabase database = SHARED_DATABASE;
 			if (database != null) database.deleteForDefaultOwner();
 		}
 		
-		/**
-        * Deletes all persisted task data from the database.
-        *
-        * <p>This does not delete downloaded files or remove tasks from active
-        * SimpleDownloader instances.</p>
-        */		
+		/** Deletes all persisted task data from the database. This does not delete the downloaded file or remove the task from an active SimpleDownloader instance.*/		
 		public void deleteForAll() {
 			TaskDatabase database = SHARED_DATABASE;
 			if (database != null) database.deleteForAll();
 		}
 		
-		/**
-        * Drops and recreates the tasks table and its indexes.
-        *
-        * <p>This removes all persisted task data. It does not delete downloaded
-        * files or remove tasks from active SimpleDownloader instances.</p>
-        *
-        * <p>Do not use this while downloads are running unless you intentionally
-        * want to discard their persisted database state.</p>
-        */		
+		/** Drops and recreates the tasks table and its indexes. This removes all persisted task data. It does not delete downloaded files or remove tasks from active SimpleDownloader instances.*/		
 		public void resetTasksTable() {
 			TaskDatabase database = SHARED_DATABASE;
 			if (database != null) database.resetTasksTable();
