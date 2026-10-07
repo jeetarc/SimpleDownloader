@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -39,10 +39,23 @@ final class TaskManager {
 		return new ArrayList<DownloadTask>(registry.values());
 	}
 	
-	ArrayList<DownloadTask> getTasks() {
+	List<DownloadTask> getTasks() {
 		synchronized (downloader.mLock) {
-			return new ArrayList<DownloadTask>(taskList);
+			return Collections.unmodifiableList(new ArrayList<DownloadTask>(taskList));
 		}
+	}
+	
+	<T> List<DownloadTask> getTasks(TaskField<T> field, T value) {
+		field.validateValue(value);
+		ArrayList<DownloadTask> result = new ArrayList<DownloadTask>();
+		
+		synchronized (downloader.mLock) {
+			for (DownloadTask task : taskList) {
+				if (field.matches(task, value)) result.add(task);
+			}
+		}
+		
+		return Collections.unmodifiableList(result);
 	}
 	
 	<T> DownloadTask getTask(TaskField<T> field, T value) {
@@ -57,19 +70,6 @@ final class TaskManager {
 			
 			return latest;
 		}
-	}
-	
-	<T> ArrayList<DownloadTask> getTasks(TaskField<T> field, T value) {
-		field.validateValue(value);
-		ArrayList<DownloadTask> result = new ArrayList<DownloadTask>();
-		
-		synchronized (downloader.mLock) {
-			for (DownloadTask task : taskList) {
-				if (field.matches(task, value)) result.add(task);
-			}
-		}
-		
-		return result;
 	}
 	
 	boolean hasTask(long id) {
@@ -211,8 +211,12 @@ final class TaskManager {
 			return;
 		}
 		
-		boolean unfinished = restored == Status.STARTING || restored == Status.CONNECTING || restored == Status.DOWNLOADING
-		|| restored == Status.RETRYING || restored == Status.QUEUED || restored == Status.WAITING_FOR_NETWORK;
+		if (restored == Status.QUEUED) {
+			downloader.slotManager.restoreQueuedTaskLocked(task);
+			return;
+		}
+		
+		boolean unfinished = restored == Status.STARTING || restored.isActive() || restored == Status.WAITING_FOR_NETWORK;
 		
 		if (unfinished) {
 			if (autoRestore) downloader.slotManager.restoreQueuedTaskLocked(task);
@@ -226,9 +230,9 @@ final class TaskManager {
 	
 	private void notifyRestoredTask(DownloadTask task) {
 		if (task == null) return;
-		if (task.status == Status.PAUSED) EventDispatcher.onPaused(task);
-		else if (task.status == Status.QUEUED) EventDispatcher.onQueued(task);
-		else if (task.status == Status.WAITING_FOR_NETWORK) EventDispatcher.onWaitingForNetwork(task);
+		if (task.mStatus == Status.PAUSED) EventDispatcher.onPaused(task);
+		else if (task.mStatus == Status.QUEUED) EventDispatcher.onQueued(task);
+		else if (task.mStatus == Status.WAITING_FOR_NETWORK) EventDispatcher.onWaitingForNetwork(task);
 	}
 	
 	
@@ -273,6 +277,47 @@ final class TaskManager {
 		}
 	}
 	
+	void addObserver(TaskListObserver observer) {
+		if (observer == null) return;
+		synchronized (downloader.mLock) {
+			if (!observerList.contains(observer)) observerList.add(observer);
+		}
+		
+		requestTasksChanged();
+	}
+	
+	void removeObserver(TaskListObserver observer) {
+		if (observer == null) return;
+		synchronized (downloader.mLock) {
+			observerList.remove(observer);
+		}
+	}
+	
+	List<TaskListObserver> snapshotObservers() {
+		synchronized (downloader.mLock) {
+			return new ArrayList<TaskListObserver>(observerList);
+		}
+	}
+	
+	boolean hasObservers() {
+		synchronized (downloader.mLock) {
+			return !observerList.isEmpty();
+		}
+	}
+	
+	boolean hasObserver(TaskListObserver observer) {
+		synchronized (downloader.mLock) {
+			return observerList.contains(observer);
+		}
+	}
+	
+	void setTaskComparator(Comparator<DownloadTask> comparator) {
+		synchronized (downloader.mLock) {
+			taskComparator = comparator != null ? comparator : DEFAULT_TASK_ORDER;
+			sortTasksLocked();
+		}
+	}
+	
 	void setSortingEnabled(boolean enable) {
 		synchronized (downloader.mLock) {
 			enableSorting = enable;
@@ -307,44 +352,9 @@ final class TaskManager {
 	private static int getTaskSortGroup(DownloadTask task) {
 		if (task == null) return 99;
 		if (task.isOccupiedSlot() || task.isActive()) return 1;
-		if (task.isQueued() || task.isPaused()) return 2;
+		if (task.isQueued() || task.isPaused() || task.isWaitingForNetwork()) return 2;
 		if (task.isFinished()) return 3;
 		return 4;
-	}
-	
-	void addObserver(TaskListObserver observer) {
-		if (observer == null) return;
-		synchronized (downloader.mLock) {
-			if (!observerList.contains(observer)) observerList.add(observer);
-		}
-		
-		requestTasksChanged();
-	}
-	
-	void removeObserver(TaskListObserver observer) {
-		if (observer == null) return;
-		synchronized (downloader.mLock) {
-			observerList.remove(observer);
-		}
-	}
-	
-	List<TaskListObserver> snapshotObservers() {
-		synchronized (downloader.mLock) {
-			return new ArrayList<TaskListObserver>(observerList);
-		}
-	}
-	
-	boolean hasObserver(TaskListObserver observer) {
-		synchronized (downloader.mLock) {
-			return observerList.contains(observer);
-		}
-	}
-	
-	void setTaskComparator(Comparator<DownloadTask> comparator) {
-		synchronized (downloader.mLock) {
-			taskComparator = comparator != null ? comparator : DEFAULT_TASK_ORDER;
-			sortTasksLocked();
-		}
 	}
 	
 	private static final Comparator<DownloadTask> DEFAULT_TASK_ORDER = new Comparator<DownloadTask>() {
@@ -364,7 +374,7 @@ final class TaskManager {
 			// Finished: newest first.
 			if (groupA == 3) return Long.compare(b.getCreatedAt(), a.getCreatedAt());
 			
-            int priorityCompare = Integer.compare(b.getPriority().getWeight(), a.getPriority().getWeight());
+			int priorityCompare = Integer.compare(b.getPriority().getWeight(), a.getPriority().getWeight());
 			if (priorityCompare != 0) return priorityCompare;
 			return Long.compare(b.getCreatedAt(), a.getCreatedAt());
 		}
@@ -385,7 +395,7 @@ final class TaskManager {
 		if (!wasActiveForAuto && isActiveForAuto) mActiveSpeedTaskCountForAutoConcurrency++;
 		else if (wasActiveForAuto && !isActiveForAuto) mActiveSpeedTaskCountForAutoConcurrency--;
 		
-        if (mTotalActiveSpeedForAutoConcurrency < 0) mTotalActiveSpeedForAutoConcurrency = 0;
+		if (mTotalActiveSpeedForAutoConcurrency < 0) mTotalActiveSpeedForAutoConcurrency = 0;
 		if (mActiveSpeedTaskCountForAutoConcurrency < 0) mActiveSpeedTaskCountForAutoConcurrency = 0;
 		task.mLastSpeedForAutoConcurrency = newSpeed;
 	}
