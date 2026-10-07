@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -15,6 +15,11 @@ import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.IBinder;
+import androidx.core.app.ServiceCompat;
+
+import com.jeetarc.simpledownloader.util.Formatter;
+import com.jeetarc.simpledownloader.util.Logs;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -24,8 +29,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import com.jeet.simpledownloader.util.Formatter;
-import com.jeet.simpledownloader.util.Logs;
+
 
 /**
 * DownloadService is used internally for notifications and foreground execution.
@@ -33,13 +37,13 @@ import com.jeet.simpledownloader.util.Logs;
 * <p>Applications should not start or control this service directly.</p>
 */
 public final class DownloadService extends Service {
-	static final String ACTION_ATTACH_LIFECYCLE = "com.jeet.simpledownloader.action.ATTACH_LIFECYCLE";
-	static final String ACTION_ATTACH_ACTIVE = "com.jeet.simpledownloader.action.ATTACH_ACTIVE";
-	static final String ACTION_PAUSE = "com.jeet.simpledownloader.action.PAUSE";
-	static final String ACTION_RESUME = "com.jeet.simpledownloader.action.RESUME";
-	static final String ACTION_CANCEL = "com.jeet.simpledownloader.action.CANCEL";
-	static final String ACTION_RETRY = "com.jeet.simpledownloader.action.RETRY";
-	static final String ACTION_DISMISS = "com.jeet.simpledownloader.action.DISMISS";
+	static final String ACTION_ATTACH_LIFECYCLE = "com.jeetarc.simpledownloader.action.ATTACH_LIFECYCLE";
+	static final String ACTION_ATTACH_ACTIVE = "com.jeetarc.simpledownloader.action.ATTACH_ACTIVE";
+	static final String ACTION_PAUSE = "com.jeetarc.simpledownloader.action.PAUSE";
+	static final String ACTION_RESUME = "com.jeetarc.simpledownloader.action.RESUME";
+	static final String ACTION_CANCEL = "com.jeetarc.simpledownloader.action.CANCEL";
+	static final String ACTION_RETRY = "com.jeetarc.simpledownloader.action.RETRY";
+	static final String ACTION_DISMISS = "com.jeetarc.simpledownloader.action.DISMISS";
 	static final String EXTRA_TASK_ID = "SimpleDownloader_task_id";
 	private static volatile DownloadService runningService;
 	private final ExecutorService notificationExecutor = Executors.newSingleThreadExecutor();
@@ -63,12 +67,17 @@ public final class DownloadService extends Service {
 	
 	static void onTaskBecameActive(DownloadTask task) {
 		if (task == null || task.mContext == null || !task.mDownloader.areNotificationsEnabled()) return;
-		if (!task.isActive() || task.status == Status.QUEUED) return;
+		if (!task.isActive() || task.mStatus == Status.QUEUED) return;
 		task.mNotificationDismissed = false;
 		DownloadService service = runningService;
 		
 		if (service != null) service.handleBecameActive(task);
 		else startServiceForTask(task, ACTION_ATTACH_ACTIVE);
+	}
+	
+	static void onTaskQueued(DownloadTask task) {
+		DownloadService service = runningService;
+		if (service != null) service.handleQueued(task);
 	}
 	
 	static void onTaskProgress(final DownloadTask task) {
@@ -157,7 +166,7 @@ public final class DownloadService extends Service {
 			return;
 		}
 		
-		if (task.mNotificationDismissed || (task.status != Status.COMPLETED && task.status != Status.FAILED)) {
+		if (task.mNotificationDismissed || (task.mStatus != Status.COMPLETED && task.mStatus != Status.FAILED)) {
 			if (!bitmap.isRecycled()) bitmap.recycle();
 			return;
 		}
@@ -342,8 +351,21 @@ public final class DownloadService extends Service {
 		}
 	}
 	
+	private void ensureActiveTaskInGroup(DownloadTask task) {
+		if (task == null || !isNotificationAllowed(task)) return;
+		
+		if (!groupTasks.contains(task.mId)) {
+			addToGroup(task);
+			return;
+		}
+		
+		if (task.mDownloader.isForegroundEnabled() && foregroundTasks.add(task.mId)) {
+			refreshSummary();
+		}
+	}
+	
 	private void handleLifecycleStarted(DownloadTask task) {
-		if (!isNotificationAllowed(task)) return;
+		if (task == null || !isNotificationAllowed(task)) return;
 		task.mNotificationDismissed = false;
 		addToGroup(task);
 		postProgressNotification(task, "Download starting...", null, task.mProgress, true, false, true);
@@ -351,41 +373,49 @@ public final class DownloadService extends Service {
 	
 	private void handleBecameActive(DownloadTask task) {
 		if (!isNotificationAllowed(task)) return;
-		if (task.status == Status.QUEUED || !task.isActive()) return;
+		if (task.mStatus == Status.QUEUED || !task.isActive()) return;
 		task.mNotificationDismissed = false;
+		ensureActiveTaskInGroup(task);
+	}
+	
+	private void handleQueued(DownloadTask task) {
+		if (task == null) return;
+		if (!groupTasks.contains(task.mId) && !foregroundTasks.contains(task.mId)) return;
+		
+		cancelProgress(task.mId);
+		removeFromGroup(task.mId);
+		clearThumbnail(task.mId);
+		clearTaskNotificationBuilder(task.mId);
 	}
 	
 	private void handleProgress(DownloadTask task) {
-		if (!task.isActive()) return;
+		if (task == null || !task.isActive()) return;
 		if (!isNotificationAllowed(task)) return;
 		if (task.mNotificationDismissed) return;
-		
-		if (!groupTasks.contains(task.mId)) {
-			if (!task.isActive()) return;
-			addToGroup(task);
-		}
-		
-		postProgressNotification(task, resolveProgressText(task), speedSubText(task), task.mProgress, false, false, true);
+		ensureActiveTaskInGroup(task);
+		postProgressNotification(task, resolveProgressText(task), speedSubText(task.mSpeed), task.mProgress, false, false, true);
 	}
 	
 	private void handlePaused(DownloadTask task) {
-		if (!isNotificationAllowed(task)) return;
+		if (task == null || !isNotificationAllowed(task)) return;
 		if (task.mNotificationDismissed) return;
 		if (!groupTasks.contains(task.mId)) return;
+		if (!task.mDownloader.mHoldSlotOnPause) foregroundTasks.remove(task.mId);
 		String text = "Paused • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
 		postProgressNotification(task, text, null, task.mProgress, false, true, true);
+		refreshSummary();
 	}
 	
 	private void handleResumed(DownloadTask task) {
-		if (!isNotificationAllowed(task)) return;
+		if (task == null || !isNotificationAllowed(task)) return;
 		task.mNotificationDismissed = false;
-		if (!groupTasks.contains(task.mId)) addToGroup(task);
+		ensureActiveTaskInGroup(task);
 		String text = "Resuming • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
-		postProgressNotification(task, text, speedSubText(task), task.mProgress, false, false, true);
+		postProgressNotification(task, text, speedSubText(task.mSpeed), task.mProgress, false, false, true);
 	}
 	
 	private void handleWaitingForNetwork(DownloadTask task) {
-		if (!isNotificationAllowed(task)) return;
+		if (task == null || !isNotificationAllowed(task)) return;
 		if (task.mNotificationDismissed) return;
 		
 		if (!groupTasks.contains(task.mId)) addToGroup(task);
@@ -394,7 +424,7 @@ public final class DownloadService extends Service {
 	}
 	
 	private void handleRetry(DownloadTask task, int attempt) {
-		if (!isNotificationAllowed(task)) return;
+		if (task == null || !isNotificationAllowed(task)) return;
 		cancelFinished(task.mId);
 		if (task.mNotificationDismissed) return;
 		if (!groupTasks.contains(task.mId)) addToGroup(task);
@@ -472,7 +502,7 @@ public final class DownloadService extends Service {
 	private void handleThumbnailReady(DownloadTask task, Bitmap bitmap) {
 		if (task == null || bitmap == null) return;
 		
-		if (task.status == Status.CANCELLED) {
+		if (task.mStatus == Status.CANCELLED) {
 			if (!bitmap.isRecycled()) bitmap.recycle();
 			return;
 		}
@@ -483,7 +513,7 @@ public final class DownloadService extends Service {
 		
 		NotificationBuilder builder = taskBuilder(task);
 		
-		if (task.status == Status.COMPLETED) {
+		if (task.mStatus == Status.COMPLETED) {
 			if (task.mDownloader.areNotificationsEnabled() && builder != null && builder.getConfig().showCompleteNotification) {
 				Notification notification = builder.buildComplete(task, task.mOutputUri, bitmap);
 				postNotification(builder.finishedNotificationId(task.mId), notification);
@@ -492,7 +522,7 @@ public final class DownloadService extends Service {
 			clearThumbnail(task.mId);
 			clearTaskNotificationBuilder(task.mId);
 			
-		} else if (task.status == Status.FAILED) {
+		} else if (task.mStatus == Status.FAILED) {
 			if (task.mDownloader.areNotificationsEnabled() && builder != null && builder.getConfig().showErrorNotification) {
 				Notification notification = builder.buildError(task, task.mLastError, bitmap);
 				postNotification(builder.finishedNotificationId(task.mId), notification);
@@ -502,7 +532,7 @@ public final class DownloadService extends Service {
 			clearTaskNotificationBuilder(task.mId);
 			
 		} else if (groupTasks.contains(task.mId)) {
-			postProgressNotification(task, resolveProgressText(task), speedSubText(task), task.mProgress, false, task.status == Status.PAUSED, true);
+			postProgressNotification(task, resolveProgressText(task), speedSubText(task.mSpeed), task.mProgress, false, task.mStatus == Status.PAUSED, true);
 		}
 	}
 	
@@ -525,16 +555,15 @@ public final class DownloadService extends Service {
 	}
 	
 	private String resolveProgressText(DownloadTask task) {
-		if (task == null) return "Downloading..";
-		if (task.status == Status.WAITING_FOR_NETWORK) return "Waiting for network • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
-		if (task.status == Status.RETRYING) return "Retrying..";
-		if (task.status == Status.PAUSED) return "Paused • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
+		if (task.mStatus == Status.WAITING_FOR_NETWORK) return "Waiting for network • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
+		if (task.mStatus == Status.RETRYING) return "Retrying..";
+		if (task.mStatus == Status.PAUSED) return "Paused • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
 		return getEtaText(task.mEta) + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
 	}
 	
-	private String speedSubText(DownloadTask task) {
-		if (task == null || task.status != Status.DOWNLOADING) return null;
-		return Formatter.formatSpeed(task.mSpeed);
+	private String speedSubText(long speed) {
+		if (speed < 0L) return null;
+		return Formatter.formatSpeed(speed);
 	}
 	
 	private String getEtaText(long eta) {
@@ -543,9 +572,7 @@ public final class DownloadService extends Service {
 	}
 	
 	private void postProgressNotification(DownloadTask task, String text, String subText, int progress, boolean indeterminate, boolean paused, boolean allowPost) {
-		if (!allowPost || task == null) return;
-		if (task.mNotificationDismissed) return;
-		if (!groupTasks.contains(task.mId)) return;
+		if (!allowPost || task.mNotificationDismissed || !groupTasks.contains(task.mId)) return;
 		NotificationBuilder builder = taskBuilder(task);
 		if (builder == null) return;
 		Notification notification = builder.buildTask(task, getThumbnail(task), text, subText, progress, indeterminate, paused);
@@ -563,7 +590,7 @@ public final class DownloadService extends Service {
 			builder.createChannel();
 			Notification notification;
 			
-			if (task.status == Status.COMPLETED) {
+			if (task.mStatus == Status.COMPLETED) {
 				if (!builder.getConfig().showCompleteNotification) return;
 				notification = builder.buildComplete(task, task.mOutputUri, bitmap);
 				
@@ -624,14 +651,15 @@ public final class DownloadService extends Service {
 		}
 		
 		if (notificationBuilder == null) notificationBuilder = createBuilder(null);
-		boolean foregroundMode = !foregroundTasks.isEmpty();
-		Notification summary = notificationBuilder.buildSummary(count, foregroundMode);
 		
-		if (foregroundMode) {
+		if (!foregroundTasks.isEmpty()) {
+			Notification summary = notificationBuilder.buildSummary(count, true);
 			tryStartForeground(summary);
+			
 		} else {
-			tryStopForeground(true);
-			if (notificationBuilder.groupAllowed()) postNotification(notificationBuilder.summaryNotificationId(), summary);
+			tryStopForeground(false);
+            Notification summary = notificationBuilder.buildSummary(count, false);
+            postNotification(notificationBuilder.summaryNotificationId(), summary);
 		}
 	}
 	
@@ -656,11 +684,15 @@ public final class DownloadService extends Service {
 	
 	private void tryStopForeground(boolean removeNotification) {
 		if (!foregroundStarted) return;
+		
 		try {
-			stopForeground(removeNotification);
+			int flag = removeNotification ? ServiceCompat.STOP_FOREGROUND_REMOVE : ServiceCompat.STOP_FOREGROUND_DETACH;
+			ServiceCompat.stopForeground(this, flag);
+			
 		} catch (Throwable thr) {
 			Logs.err("Unable to stop foreground service.", thr);
 		}
+		
 		foregroundStarted = false;
 	}
 	
