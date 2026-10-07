@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+
 
 final class SlotManager {
 	private final SimpleDownloader downloader;
@@ -108,6 +109,12 @@ final class SlotManager {
 	}
 	
 	void submitReadyHeldTasksLocked() {
+		
+		if (downloader.mRestoreAutoDispatchBlocked) {
+			downloader.taskManager.sortTasksLocked();
+			return;
+		}
+		
 		if (!downloader.networkManager.getWaitingForPreferredNetwork().isEmpty()) {
 			for (int i = 0; i < downloader.networkManager.getWaitingForPreferredNetwork().size(); i++) {
 				DownloadTask task = downloader.networkManager.getWaitingForPreferredNetwork().get(i);
@@ -133,7 +140,7 @@ final class SlotManager {
 		
 		for (int i = 0; i < heldQueue.size(); i++) {
 			DownloadTask task = heldQueue.get(i);
-			if (task == null || task.status == Status.CANCELLED || task.status == Status.COMPLETED || task.status == Status.FAILED) {
+			if (task == null || task.mStatus == Status.CANCELLED || task.mStatus == Status.COMPLETED || task.mStatus == Status.FAILED) {
 				heldQueue.remove(i);
 				i--;
 				continue;
@@ -170,7 +177,7 @@ final class SlotManager {
 	
 	void holdTaskLocked(final DownloadTask task) {
 		if (task == null) return;
-		boolean wasAlreadyQueued = task.status == Status.QUEUED;
+		boolean wasAlreadyQueued = task.mStatus == Status.QUEUED;
 		removeFromExecutorQueueLocked(task);
 		releaseSlotLocked(task);
 		if (!heldQueue.contains(task)) heldQueue.add(task);
@@ -183,7 +190,13 @@ final class SlotManager {
 		if (task == null) return false;
 		removeFromExecutorQueueLocked(task);
 		heldQueue.remove(task);
-		if (!occupySlotLocked(task)) return false;
+		
+		if (downloader.mHoldSlotOnPause) {
+			if (!occupySlotLocked(task)) return false;
+		} else {
+			releaseSlotLocked(task);
+		}
+		
 		task.setStatusRestored(Status.PAUSED);
 		return true;
 	}
@@ -205,13 +218,7 @@ final class SlotManager {
 	}
 	
 	void submitTaskLocked(DownloadTask task) {
-		if (task == null || task.status == Status.CONNECTING || task.status == Status.DOWNLOADING) return;
-		
-		if (!downloader.networkManager.canRunNow(task)) {
-			downloader.networkManager.moveToWaitingForNetwork(task);
-			return;
-		}
-		
+		if (task == null || task.mStatus == Status.CONNECTING || task.mStatus == Status.DOWNLOADING) return;
 		removeFromExecutorQueueLocked(task);
 		task.clearFuture();
 		
@@ -230,15 +237,10 @@ final class SlotManager {
 	
 	void resumeOccupiedTask(DownloadTask task) {
 		synchronized (downloader.mLock) {
-			if (task == null || task.status != Status.PAUSED) return;
+			if (task == null || task.mStatus != Status.PAUSED) return;
 			removeFromExecutorQueueLocked(task);
 			heldQueue.remove(task);
 			task.clearFuture();
-			
-			if (!downloader.networkManager.canRunNow(task)) {
-				downloader.networkManager.moveToWaitingForNetwork(task);
-				return;
-			}
 			
 			if (task.mForceDownload) {
 				forcedTasks.add(task);
@@ -266,7 +268,7 @@ final class SlotManager {
 	
 	void resumeOccupiedWaiting(DownloadTask task) {
 		synchronized (downloader.mLock) {
-			if (task == null || task.status != Status.WAITING_FOR_NETWORK) return;
+			if (task == null || task.mStatus != Status.WAITING_FOR_NETWORK) return;
 			task.resetStopFlags();
 			submitTaskLocked(task);
 		}
@@ -302,7 +304,7 @@ final class SlotManager {
 				return;
 			}
 			
-			if (task != null && task.status == Status.QUEUED && executor != null && executor.removeTask(task)) {
+			if (task != null && task.mStatus == Status.QUEUED && executor != null && executor.removeTask(task)) {
 				submitTaskLocked(task);
 			}    
 		}
@@ -310,7 +312,7 @@ final class SlotManager {
 	
 	void onLockedStateChanged(DownloadTask task) {
 		synchronized (downloader.mLock) {
-			if (task == null || task.status != Status.QUEUED) return;
+			if (task == null || task.mStatus != Status.QUEUED) return;
 			if (task.mLockedInQueue) {
 				holdTaskLocked(task);
 			} else {
@@ -339,7 +341,7 @@ final class SlotManager {
 	boolean hasRunnableQueuedTaskLocked() {
 		for (DownloadTask task : heldQueue) {
 			if (task == null) continue;
-			if (task.status == Status.CANCELLED || task.status == Status.COMPLETED || task.status == Status.FAILED) continue;
+			if (task.mStatus == Status.CANCELLED || task.mStatus == Status.COMPLETED || task.mStatus == Status.FAILED) continue;
 			if (task.mLockedInQueue) continue;
 			if (downloader.networkManager.canRunNow(task)) return true;
 		}
@@ -392,7 +394,7 @@ final class SlotManager {
 					if (!downloader.mEnableHistory) {
 						if (downloader.taskDatabase != null) downloader.taskDatabase.removeTask(task.mId);
 						
-					} else if (downloader.taskDatabase != null && (task.status == Status.COMPLETED || task.status == Status.CANCELLED)) {
+					} else if (downloader.taskDatabase != null && (task.mStatus == Status.COMPLETED || task.mStatus == Status.CANCELLED)) {
 						downloader.taskDatabase.clearFinishedInternalData(task.mId);
 					}
 				}
