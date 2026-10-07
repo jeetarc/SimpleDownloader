@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace "com.jeet.simpledownloader"
+    namespace "com.jeetarc.simpledownloader"
     compileSdk 35
 
     defaultConfig {
@@ -13,8 +13,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 
     publishing {
@@ -38,7 +38,7 @@ afterEvaluate {
                 from components.release
                 groupId = "com.github.jeetarc"
                 artifactId = "SimpleDownloader"
-                version = "1.0.1"
+                version = "1.0.2"
             }
         }
     }
