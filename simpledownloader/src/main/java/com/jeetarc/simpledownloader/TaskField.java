@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -85,7 +85,7 @@ public final class TaskField<T> {
 			case "file_url": actual = task.mFileUrl;
 			break;
 			
-			case "status": actual = task.status;
+			case "status": actual = task.mStatus;
 			break;
 			
 			case "priority": actual = task.mPriority;

@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader.util;
+package com.jeetarc.simpledownloader.util;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Locale;
+
 
 /**
 * Formatting utilities for byte sizes, download speeds, estimated

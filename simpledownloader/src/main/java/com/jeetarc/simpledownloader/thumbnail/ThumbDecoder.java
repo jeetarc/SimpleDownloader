@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader.thumbnail;
+package com.jeetarc.simpledownloader.thumbnail;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -22,13 +22,15 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.graphics.pdf.PdfRenderer;
-import com.jeet.simpledownloader.util.TypeResolver;
+import com.jeetarc.simpledownloader.util.TypeResolver;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.util.Locale;
+
 
 /** Performs thumbnail decode (uused internally). */
 final class ThumbDecoder {

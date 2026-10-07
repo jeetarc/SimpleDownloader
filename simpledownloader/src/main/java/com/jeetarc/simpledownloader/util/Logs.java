@@ -1,11 +1,13 @@
-package com.jeet.simpledownloader.util;
+package com.jeetarc.simpledownloader.util;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
 *
 * This source code is part of SimpleDownloader.
 */
-import com.jeet.simpledownloader.SimpleDownloader;
+
+import com.jeetarc.simpledownloader.SimpleDownloader;
+
 
 public class Logs {
     private Logs() {}

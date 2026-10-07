@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader.util;
+package com.jeetarc.simpledownloader.util;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -8,6 +8,7 @@ package com.jeet.simpledownloader.util;
 
 import java.util.concurrent.TimeUnit;
 
+
 /** Internal class */
 public class EtaHelper {
 	static final long ETA_UNKNOWN = -1L;
@@ -15,7 +16,7 @@ public class EtaHelper {
 	private static final double ALPHA = 0.20;
 	private static final int MIN_SAMPLES = 3;
 	private static final long ETA_UPDATE_INTERVAL_MS = 1000L;
-	private static final long SPEED_SAMPLE_INTERVAL_MS = 750L;
+	private static final long SPEED_SAMPLE_INTERVAL_MS = 1000L;
 	private static final long STALL_TIMEOUT_MS = 5000L;
 	
 	private static final long ETA_UPDATE_INTERVAL_NS = TimeUnit.MILLISECONDS.toNanos(ETA_UPDATE_INTERVAL_MS);
