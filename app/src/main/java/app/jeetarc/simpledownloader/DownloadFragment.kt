@@ -25,8 +25,8 @@ import androidx.viewpager.widget.ViewPager
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.jeet.simpledownloader.DownloadRequest
-import com.jeet.simpledownloader.FileName
+import com.jeetarc.simpledownloader.DownloadRequest
+import com.jeetarc.simpledownloader.FileName
 
 import app.jeetarc.simpledownloader.databinding.DownloadFragmentBinding
 
