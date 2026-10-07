@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -9,22 +9,27 @@ package com.jeet.simpledownloader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+
+import com.jeetarc.simpledownloader.util.Logs;
+import com.jeetarc.simpledownloader.util.TypeResolver;
+
 import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-import com.jeet.simpledownloader.util.TypeResolver;
-import com.jeet.simpledownloader.util.Logs;
+
 
 final class HttpEngine {
 	private OkHttpClient baseClient;
 	private boolean ownsBaseClient;
 	private final Map<String, OkHttpClient> timeoutClients = new HashMap<String, OkHttpClient>();
+	private long lastTimeoutKey = Long.MIN_VALUE;
+	private OkHttpClient lastTimeoutClient;
 	HttpEngine() {}
 	
 	synchronized void setClient(OkHttpClient client) {
@@ -37,12 +42,16 @@ final class HttpEngine {
 		baseClient = client;
 		ownsBaseClient = false;
 		timeoutClients.clear();
+		lastTimeoutKey = Long.MIN_VALUE;
+		lastTimeoutClient = null;
 		
 		if (closePreviousClient) shutdownClient(previousClient);
 	}
 	
 	synchronized void clearTimeoutClients() {
 		timeoutClients.clear();
+		lastTimeoutKey = Long.MIN_VALUE;
+		lastTimeoutClient = null;
 	}
 
 	synchronized OkHttpClient getClient(int connectTimeout, int readTimeout) {
@@ -59,9 +68,16 @@ final class HttpEngine {
 		
 		if (connectTimeout <= 0 && readTimeout <= 0) return baseClient;
 		
+		long timeoutKey = ((long) connectTimeout << 32) ^ (readTimeout & 0xffffffffL);
+		if (timeoutKey == lastTimeoutKey && lastTimeoutClient != null) return lastTimeoutClient;
+		
 		String key = connectTimeout + ":" + readTimeout;
 		OkHttpClient cached = timeoutClients.get(key);
-		if (cached != null) return cached;
+		if (cached != null) {
+			lastTimeoutKey = timeoutKey;
+			lastTimeoutClient = cached;
+			return cached;
+		}
 		
 		OkHttpClient.Builder builder = baseClient.newBuilder();
 		if (connectTimeout > 0) builder.connectTimeout(connectTimeout, TimeUnit.MILLISECONDS);
@@ -69,10 +85,16 @@ final class HttpEngine {
 		
 		OkHttpClient client = builder.build();
 		timeoutClients.put(key, client);
+		lastTimeoutKey = timeoutKey;
+		lastTimeoutClient = client;
 		return client;
 	}
 	
 	Request.Builder newRequestBuilder(DownloadTask task) {
+		return newRequestBuilder(task, true);
+	}
+	
+	private Request.Builder newRequestBuilder(DownloadTask task, boolean includeTaskHeaders) {
 		String userAgent = task.mUserAgent;
 		if (userAgent == null || userAgent.trim().isEmpty()) userAgent = System.getProperty("http.agent");
 		
@@ -81,16 +103,21 @@ final class HttpEngine {
 		.header("User-Agent", userAgent)
 		.header("Accept-Encoding", "identity");
 		
-		if (task.mHeaders != null) {
-			for (Map.Entry<String, String> header : task.mHeaders.entrySet()) {
-				if (header.getKey() != null && header.getValue() != null) {
-					builder.header(header.getKey(), header.getValue());
-				}
+		if (includeTaskHeaders) {
+			if (task.mHeaders != null) applyTaskHeaders(builder, task);
+			else if (task.mCookies != null && !task.mCookies.isEmpty()) builder.header("Cookie", task.mCookies);
+		}
+		return builder;
+	}
+	
+	private void applyTaskHeaders(Request.Builder builder, DownloadTask task) {
+		for (Map.Entry<String, String> header : task.mHeaders.entrySet()) {
+			if (header.getKey() != null && header.getValue() != null) {
+				builder.header(header.getKey(), header.getValue());
 			}
 		}
 		
 		if (task.mCookies != null && !task.mCookies.isEmpty()) builder.header("Cookie", task.mCookies);
-		return builder;
 	}
 	
 	Call newCall(DownloadTask task, Request request) {
@@ -99,7 +126,7 @@ final class HttpEngine {
 	}
 	
 	HttpConnection open(DownloadTask task, long existingFileSize) throws IOException, RefreshRequestException {
-		Request.Builder requestBuilder = newRequestBuilder(task);
+		Request.Builder requestBuilder = newRequestBuilder(task, false);
 		
 		if (existingFileSize > 0) {
 			requestBuilder.header("Range", "bytes=" + existingFileSize + "-");
@@ -112,11 +139,7 @@ final class HttpEngine {
 			}
 		}
 		
-		for (Map.Entry<String, String> header : task.mHeaders.entrySet()) {
-			if (header.getKey() != null && header.getValue() != null) requestBuilder.header(header.getKey(), header.getValue());
-		}
-		
-		if (task.mCookies != null && !task.mCookies.isEmpty()) requestBuilder.header("Cookie", task.mCookies);
+		applyTaskHeaders(requestBuilder, task);
 		Call call = newCall(task, requestBuilder.build());
 		task.mCurrentCall = call;
 		Response response = call.execute();
@@ -128,6 +151,8 @@ final class HttpEngine {
 		String eTag = response.header("ETag");
 		String lastModified = response.header("Last-Modified");
 		task.mIgnoredRange = false;
+		String contentRange = null;
+		long rangeTotal = -1;
 		
 		if (code == 416) {
 			long remoteTotal = parseTotalFromContentRange(response.header("Content-Range"));
@@ -153,11 +178,8 @@ final class HttpEngine {
 			task.mIgnoredRange = true;
 			
 		} else if (code == 206) {
-			validatePartialResponse(response, existingFileSize);
-			
-		} else if (code < 200 || code >= 300) {
-			response.close();
-			throw DownloadException.http(code);
+			contentRange = response.header("Content-Range");
+			rangeTotal = validatePartialResponse(response, existingFileSize, contentRange);
 			
 		} else if (code != 200 && code != 206) {
 			response.close();
@@ -167,32 +189,24 @@ final class HttpEngine {
 		if (existingFileSize <= 0) {
 			task.mETag = eTag;
 			task.mLastModified = lastModified;
+            
 		} else {
 			if (eTag != null) task.mETag = eTag;
 			if (lastModified != null) task.mLastModified = lastModified;
 		}
 		
-		String contentDisposition = "";
-		String contentType = "";
 		String serverFileName = "";
 		String responseMime = "";
 		boolean updateDatabase = false;
 		
-		if (task.mFileNameMode != null || task.mMimeTypeMode != null) {
-			contentDisposition = response.header("Content-Disposition");
-			contentType = response.header("Content-Type");
-			serverFileName = parseNameFromContentDisposition(contentDisposition);
-			responseMime = parseMimeFromContentType(contentType);
-		}
+		boolean needsServerFileName = task.mFileNameMode == FileName.AUTO || task.mFileNameMode == FileName.TIME_BASED;
+		boolean needsResponseMime = needsServerFileName || task.mMimeTypeMode == MimeType.AUTO;
+		if (needsServerFileName) serverFileName = parseNameFromContentDisposition(response.header("Content-Disposition"));
+		if (needsResponseMime) responseMime = parseMimeFromContentType(response.header("Content-Type"));
 		
 		if (task.mFileNameMode == FileName.AUTO) {
-			if (serverFileName != null && !serverFileName.isEmpty()) {
-				task.mFileName = serverFileName;
-			}
-			
-			if (task.mFileName == null || task.mFileName.isEmpty()) {
-				task.mFileName = "download";
-			}
+			if (serverFileName != null && !serverFileName.isEmpty()) task.mFileName = serverFileName;
+			if (task.mFileName == null || task.mFileName.isEmpty()) task.mFileName = "download";
 			
 			if (TypeResolver.getExtension(task.mFileName).isEmpty()) {
 				String extension = TypeResolver.getExtensionFromMime(responseMime);
@@ -205,10 +219,7 @@ final class HttpEngine {
 		} else if (task.mFileNameMode == FileName.TIME_BASED) {
 			String extension = TypeResolver.getExtension(serverFileName);
 			if (extension.isEmpty()) extension = TypeResolver.getExtensionFromMime(responseMime);
-			
-			if (!extension.isEmpty() && TypeResolver.getExtension(task.mFileName).isEmpty()) {
-				task.mFileName = task.mFileName + "." + extension;
-			}
+			if (!extension.isEmpty() && TypeResolver.getExtension(task.mFileName).isEmpty()) task.mFileName = task.mFileName + "." + extension;
 			
 			task.mFileNameMode = null;
 			updateDatabase = true;
@@ -241,7 +252,7 @@ final class HttpEngine {
 		}
 		
 		long contentLength = body.contentLength();
-		long totalBytes = resolveTotalBytes(response, existingFileSize, contentLength);
+		long totalBytes = resolveTotalBytes(response, existingFileSize, contentLength, contentRange, rangeTotal);
 		InputStream input = body.byteStream();
 		return new HttpConnection(response, body, input, existingFileSize, totalBytes, code, task.mETag, task.mLastModified, task.mIgnoredRange, false);
 	}
@@ -252,24 +263,25 @@ final class HttpEngine {
 		return false;
 	}
 	
-	private void validatePartialResponse(Response response, long existingFileSize) throws IOException {
+	private long validatePartialResponse(Response response, long existingFileSize, String contentRange) throws IOException {
 		if (existingFileSize <= 0) throw new DownloadException(DownloadException.Type.RANGE_NOT_SUPPORTED, "Unexpected 206 response for fresh request.", response.code(), false);
-		String contentRange = response.header("Content-Range");
 		if (contentRange == null || contentRange.trim().isEmpty()) throw new DownloadException(DownloadException.Type.RANGE_NOT_SUPPORTED, "Missing Content-Range for partial response.", response.code(), false);
 		long start = parseStartFromContentRange(contentRange);
 		if (start != existingFileSize) throw new DownloadException(DownloadException.Type.RANGE_NOT_SUPPORTED, "Invalid Content-Range start: " + contentRange, response.code(), false);
+		return parseTotalFromContentRange(contentRange);
 	}
 	
-	private long resolveTotalBytes(Response response, long base, long contentLength) {
-		long fromRange = parseTotalFromContentRange(response.header("Content-Range"));
+	private long resolveTotalBytes(Response response, long base, long contentLength, String contentRange, long parsedRangeTotal) {
+		long fromRange = parsedRangeTotal;
+		if (contentRange == null) fromRange = parseTotalFromContentRange(response.header("Content-Range"));
 		if (fromRange > 0) return fromRange;
 		return contentLength > 0 ? base + contentLength : -1;
 	}
 	
 	private long parseStartFromContentRange(String contentRange) {
 		try {
-			String value = contentRange.toLowerCase(Locale.US).trim();
-			if (!value.startsWith("bytes")) return -1;
+			String value = contentRange.trim();
+			if (value.length() < 5 || !value.regionMatches(true, 0, "bytes", 0, 5)) return -1;
 			int space = value.indexOf(' ');
 			int dash = value.indexOf('-');
 			if (space < 0 || dash < 0 || dash <= space) return -1;
@@ -310,35 +322,47 @@ final class HttpEngine {
 	}
 	
 	private String findDispositionValue(String value, String key) {
-		java.util.List<String> parts = new java.util.ArrayList<>();
-		StringBuilder current = new StringBuilder();
+		int length = value.length();
+		int partStart = 0;
 		boolean inQuotes = false;
 		
-		for (int i = 0; i < value.length(); i++) {
-			char c = value.charAt(i);
-			if (c == '"') {
-				inQuotes = !inQuotes;
-				current.append(c);
-				
-			} else if (c == ';' && !inQuotes) {
-				parts.add(current.toString().trim());
-				current.setLength(0);
-				
-			} else {
-				current.append(c);
+		for (int i = 0; i <= length; i++) {
+			boolean endOfPart = i == length;
+			if (!endOfPart) {
+				char c = value.charAt(i);
+				if (c == '"') inQuotes = !inQuotes;
+				else if (c == ';' && !inQuotes) endOfPart = true;
 			}
-		}
-		
-		if (current.length() > 0) parts.add(current.toString().trim());
-		for (int i = 0; i < parts.size(); i++) {
-			String part = parts.get(i);
-			int eq = part.indexOf('=');
-			if (eq <= 0) continue;
-			String name = part.substring(0, eq).trim();
-			if (!key.equalsIgnoreCase(name)) continue;
-			String result = part.substring(eq + 1).trim();
-			if (result.startsWith("\"") && result.endsWith("\"") && result.length() >= 2) result = result.substring(1, result.length() - 1);
-			return result;
+			
+			if (!endOfPart) continue;
+			
+			int partEnd = i;
+			int nameStart = partStart;
+			int nameEnd = partEnd;
+			while (nameStart < nameEnd && value.charAt(nameStart) <= ' ') nameStart++;
+			while (nameEnd > nameStart && value.charAt(nameEnd - 1) <= ' ') nameEnd--;
+			
+			int eq = value.indexOf('=', nameStart);
+			if (eq > nameStart && eq < nameEnd) {
+				int trimmedNameEnd = eq;
+				while (trimmedNameEnd > nameStart && value.charAt(trimmedNameEnd - 1) <= ' ') trimmedNameEnd--;
+				if (trimmedNameEnd - nameStart == key.length() && value.regionMatches(true, nameStart, key, 0, key.length())) {
+					int resultStart = eq + 1;
+					int resultEnd = partEnd;
+					
+                    while (resultStart < resultEnd && value.charAt(resultStart) <= ' ') resultStart++;
+					while (resultEnd > resultStart && value.charAt(resultEnd - 1) <= ' ') resultEnd--;
+					
+                    if (resultEnd - resultStart >= 2 && value.charAt(resultStart) == '"' && value.charAt(resultEnd - 1) == '"') {
+						resultStart++;
+						resultEnd--;
+					}
+					
+                    return value.substring(resultStart, resultEnd);
+				}
+			}
+			
+			partStart = i + 1;
 		}
 		
 		return null;
@@ -348,13 +372,15 @@ final class HttpEngine {
 		try {
 			int first = value.indexOf('\'');
 			int second = value.indexOf('\'', first + 1);
-			if (first >= 0 && second > first) {
+			
+            if (first >= 0 && second > first) {
 				String charset = value.substring(0, first).trim();
 				if (charset.isEmpty()) charset = "UTF-8";
 				String encoded = value.substring(second + 1);
 				return java.net.URLDecoder.decode(encoded, charset);
 			}
 			return java.net.URLDecoder.decode(value, "UTF-8");
+            
 		} catch (Throwable ignored) {
 			return value;
 		}
@@ -365,12 +391,9 @@ final class HttpEngine {
 		
 		int separator = contentType.indexOf(';');
 		if (separator >= 0) contentType = contentType.substring(0, separator);
-		String mime = contentType.trim().toLowerCase(java.util.Locale.US);
+		String mime = contentType.trim().toLowerCase(Locale.US);
 		
-		if (mime.length() == 0 || isGenericMime(mime)) {
-			return null;
-		}
-		
+		if (mime.length() == 0 || isGenericMime(mime)) return null;
 		return mime.contains("/") ? mime : null;
 	}
 	
@@ -386,6 +409,8 @@ final class HttpEngine {
 	synchronized void shutdown() {
 		if (ownsBaseClient) shutdownClient(baseClient);
 		timeoutClients.clear();
+		lastTimeoutKey = Long.MIN_VALUE;
+		lastTimeoutClient = null;
 		baseClient = null;
 		ownsBaseClient = false;
 	}
@@ -395,7 +420,8 @@ final class HttpEngine {
 		client.dispatcher().cancelAll();
 		client.dispatcher().executorService().shutdownNow();
 		client.connectionPool().evictAll();
-		if (client.cache() != null) {
+		
+        if (client.cache() != null) {
 			try {
 				client.cache().close();
 			} catch (Throwable thr) {
