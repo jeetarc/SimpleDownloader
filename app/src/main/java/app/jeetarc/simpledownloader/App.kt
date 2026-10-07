@@ -7,7 +7,7 @@ package app.jeetarc.simpledownloader;
 */
 
 import android.app.Application
-import com.jeet.simpledownloader.SimpleDownloader
+import com.jeetarc.simpledownloader.SimpleDownloader
 
 class App : Application() {
 	private lateinit var downloader: SimpleDownloader
