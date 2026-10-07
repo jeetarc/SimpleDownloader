@@ -470,7 +470,7 @@ final class OutputResolver {
 	
 	private static Uri createFileProviderUri(Context context, File file) {  
 		try {  
-			return FileProvider.getUriForFile(context, context.getPackageName() + ".simpledownloader.fileprovider", file);  
+			return FileProvider.getUriForFile(context, context.getPackageName() + ".simpledownloader_fileprovider", file);  
 		} catch (Exception error) {  
 			Logs.warn("FileProvider cannot be resolved. The output URI will be null for file path outputs.", error);
 			return null;
