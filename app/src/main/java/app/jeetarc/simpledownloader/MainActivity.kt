@@ -23,8 +23,8 @@ import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentStatePagerAdapter
 import androidx.viewpager.widget.ViewPager
 
-import com.jeet.simpledownloader.DownloadTask
-import com.jeet.simpledownloader.SimpleDownloader
+import com.jeetarc.simpledownloader.DownloadTask
+import com.jeetarc.simpledownloader.SimpleDownloader
 
 import app.jeetarc.simpledownloader.databinding.MainBinding
 
