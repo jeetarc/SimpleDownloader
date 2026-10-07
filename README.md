@@ -64,7 +64,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url "https://jitpack.io" }
+        maven { url "https://jitpack.io" } // add this
     }
 }
 ```
@@ -73,7 +73,7 @@ Add SimpleDownloader to your app module:
 
 ```gradle
 dependencies {
-    implementation "com.github.jeetarc:SimpleDownloader:1.0.1"
+    implementation "com.github.jeetarc:SimpleDownloader:1.0.2"
 }
 ```
 
@@ -102,10 +102,9 @@ Storage permissions are not required when saving to an app-specific folder or us
 
 > All other required permissions and components are added by default.
 
-Imports (if not automatic):
+Imports:
 ```java
 import com.jeet.simpledownloader.<ClassName>;
-import com.jeet.simpledownloader.util.<ClassName>;
 ```
 Replace `<ClassName>` with the class you want to import.
 
@@ -123,7 +122,6 @@ SimpleDownloader downloader = new SimpleDownloader.Builder(context)
     .setRetryCount(3)
     .enableHistory(true)
     .enableForeground(true)
-    .setAutoRestore(true)
     .build();
 ```
 
@@ -212,7 +210,6 @@ SimpleDownloader downloader = new SimpleDownloader.Builder(context)
     .setMaxConcurrent(3)
     .setRetryCount(3)
     .enableHistory(true)
-    .setAutoRestore(true)
     .build();
 ```
 
@@ -232,6 +229,7 @@ Available `SimpleDownloader.Builder` settings:
 .setRetryCount(int count)
 .setRetryPolicy(RetryPolicy retryPolicy)
 .enableResumeOnNetworkGain(boolean enable)
+.setHoldSlotOnPause(boolean enable)
 .setAutoRestore(boolean enable)
 .restoreTasks()
 .restoreTasks(TaskField<?> field, Object value)
@@ -303,20 +301,6 @@ DownloadTask task = downloader.getTask(TaskField.FILE_NAME, fileName);
 `getTask(TaskField, value)` returns the latest matching task, or `null` when no task matches.
 You can filter the task list by any supported `TaskField`.
 
-Check task counts and state:
-
-```java
-downloader.getTotalCount();
-downloader.getActiveCount();
-downloader.getQueuedCount();
-downloader.getOccupiedCount();
-downloader.getEffectiveMaxConcurrent();
-downloader.isDownloading();
-downloader.isDownloading(id);
-downloader.hasTask(id);
-downloader.hasTask(fileUrl);
-```
-
 Available SimpleDownloader instance settings:
 ```java
 .setMaxConcurrent(int max)
@@ -330,7 +314,9 @@ Available SimpleDownloader instance settings:
 .setBufferSize(int bytes)
 .setRetryCount(int count)
 .setRetryPolicy(RetryPolicy retryPolicy)
+.setHoldSlotOnPause(boolean enable)
 .enableResumeOnNetworkGain(boolean enable)
+.setDownloadOnSlotFree(boolean enable)
 .setTaskComparator(Comparator<DownloadTask> comparator)
 .setSubFolder(String value)
 .setHeaders(Map<String,String> headers)
@@ -353,16 +339,28 @@ downloader.getReadTimeout();
 downloader.getProgressInterval();
 downloader.getBufferSize();
 downloader.getMaxConcurrent();
+downloader.getTotalCount();
+downloader.getActiveCount();
+downloader.getQueuedCount();
+downloader.getOccupiedCount();
 downloader.getEffectiveMaxConcurrent();
 downloader.getSubFolder();
 downloader.getHeaders();
 downloader.getUserAgent();
 downloader.getCookies();
+downloader.isDownloading();
+downloader.isDownloading(id);
 downloader.isWifiOnlyDefault();
 downloader.isDeleteOnRemovalDefault();
 downloader.areNotificationsEnabled();
 downloader.isForegroundEnabled();
 downloader.isAdaptiveConcurrencyEnabled();
+downloader.hasTask(id);
+downloader.hasTask(fileUrl);
+downloader.hasListeners()
+downloader.hasListener(listener)
+downloader.hasObservers()
+downloader.hasObserver(observer)
 ```
 
 If something doesn't work as expected, enable logging to see the internal failure:
@@ -439,32 +437,19 @@ More:
 ## DownloadTask
 `DownloadTask` is a live task object and provides access to its state, output, configuration, listeners, controls, etc.
 
-### Control a task
+### Task Controls and information
 
 ```java
-task.pause();
 task.resume();
 task.cancel();
 task.retry();
 task.requeue();
 task.remove();
 task.forceDownload();
-
-// Change some task settings after creation:
 task.setWifiOnly(true);
 task.setLockedInQueue(true);
 task.setDeleteOnRemoval(true);
-```
 
-Note:
-- `cancel()` stops the task and deletes its output.
-- `remove()` removes the task from SimpleDownloader register.
-- `remove()` deletes the output only when `setDeleteOnRemoval(true)` is enabled.
-- `forceDownload()` starts a queued task even when it is locked. It doesn't care about the concurrency limit
-
-### Task information
-
-```java
 task.getId();
 task.getFileUrl();
 task.getFileName();
@@ -501,7 +486,15 @@ task.isPaused();
 task.isWaitingForNetwork();
 task.isFinished();
 task.isOccupiedSlot();
+task.hasListeners()
+task.hasListener(listener)
 ```
+
+Note:
+- `cancel()` stops the task and deletes its output.
+- `remove()` removes the task from SimpleDownloader register.
+- `remove()` deletes the output only when `setDeleteOnRemoval(true)` is enabled.
+- `forceDownload()` starts a queued task even when it is locked. It doesn't care about the concurrency limit
 
 More:
 - [Task status](#Task-status)
@@ -642,7 +635,7 @@ Only one restore mode can be configured on a builder:
 
 ### Automatic Restore
 
-Enable automatic restoration of previously saved download tasks:
+Automatic restoration of previously saved download tasks. Auto restore is enabled by default.
 
 ```java
 SimpleDownloader downloader = SimpleDownloader.builder(context)
@@ -650,8 +643,7 @@ SimpleDownloader downloader = SimpleDownloader.builder(context)
     .build();
 ```
 
-When enabled, SimpleDownloader restores the saved tasks for this owner and automatically resumes eligible tasks. Auto restore is disabled by default.
-
+When enabled, SimpleDownloader restores the saved tasks for this owner and automatically resumes eligible tasks.
 
 ### Explicit restore
 
@@ -724,11 +716,24 @@ SimpleDownloader.setGlobalConcurrent(5);
 ```
 Use `0` to disable the global cap.
 
+Hold slot on pause:
+```java
+// Builder
+SimpleDownloader.builder(context)
+    .setHoldSlotOnPause(true)
+    .build();
+
+// or at runtime
+downloader.setHoldSlotOnPause(true);
+```
+When true, a paused task keeps its concurrency slot occupied instead of releasing it for other queued tasks. Default is false.
+
 Stop queued tasks from starting automatically when a slot becomes free:
 
 ```java
 downloader.setDownloadOnSlotFree(false);
 ```
+When false, queued tasks do not auto start when a slot becomes free. You must explicitly resume / force them. Default is true.
 
 Lock a queued task:
 
@@ -765,12 +770,8 @@ Status.COMPLETED
 Status.FAILED
 ```
 
-You can also use:
-```java
-status.getCode();
-status.isActive();
-status.isFinished();
-```
+Convenience methods on Status:
+`isActive()`, `isFinished()`, `isQueued()`, `isPaused()`, `isComplete()`, `isFailed()`, `isCancelled()`, etc.
 
 ## Retry policy
 
@@ -1152,11 +1153,18 @@ You do not need to call `shutdown()` normally or when an Activity is destroyed. 
 
 ## Utilities
 
+imports:
+```java
+import com.jeetarc.simpledownloader.util.<ClassName>;
+```
+
 ```java
 String size = Formatter.formatBytes(bytes);
 String speed = Formatter.formatSpeed(bytesPerSecond);
 String eta = Formatter.formatEta(etaMs);
 String ratio = Formatter.formatRatio(part, total);
+Formatter.formatTime(timeMillis, format)
+// more
 ```
 
 `TypeResolver` is used internally, but it is also available for resolving file extensions and MIME types. If unresolved it returns `""` (empty String).
@@ -1165,6 +1173,7 @@ String ratio = Formatter.formatRatio(part, total);
 String extension = TypeResolver.getExtension(fileName);
 String mime = TypeResolver.getMimeFromName(fileName);
 String mimeFromUrl = TypeResolver.getMimeFromUrl(fileUrl);
+// more
 ```
 
 ## License
