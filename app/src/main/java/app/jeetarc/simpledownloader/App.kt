@@ -23,6 +23,7 @@ class App : Application() {
 		.setConnectTimeout(15000)
 		.setReadTimeout(15000)
 		.setRetryCount(3)
+		.setHoldSlotOnPause(true)
 		.setAutoRestore(true)
 		.enableSorting(true)
 		.build()
