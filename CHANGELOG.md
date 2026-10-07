@@ -1,3 +1,49 @@
+## v1.0.2
+
+### Added
+
+- Added `.setHoldSlotOnPause(boolean enable)` to control whether a paused download holds or releases its concurrency slot.
+Can be configured via `SimpleDownloader.builder()` or a `downloader` instance.
+- Added `.hasListeners()` and `.hasListener(Listener)` methods to both `DownloadTask` and `SimpleDownloader`.
+- Added `.hasObservers()` and `.hasObserver(Observer)` methods to `SimpleDownloader`.
+- Expanded `Status` with helper methods - `isQueued()`, `isPaused()`, `isComplete()`, `isFailed()`, `isCancelled()`, and more.
+- Added `Formatter.formatTime(long timeMillis, String format)` for timestamp formatting.
+
+### Improvements
+
+- Improved restore behavior when automatic restore is disabled.
+- Improved pause, concurrency-slot, and notification handling with `holdSlotOnPause`.
+Paused downloads now release their concurrency slot by default. `holdSlotOnPause` is disabled by default.
+- Improved notification grouping, ongoing notification state, and foreground service handling.
+- Improved `Content-Range` and response handling in the HTTP engine.
+- Improved timeout client caching in the HTTP engine.
+- Fixed waiting for network state execution ordering that was blocking queued submissions.
+- Finalized the Listener API, removed deprecated callback signatures from both `DownloadTask.Listener` and `SimpleDownloader.Listener`.
+- Renamed the library package from `com.jeet.simpledownloader` to `com.jeetarc.simpledownloader`.
+- General cleanup and improvements.
+
+### Migration
+
+**1. Package Rename**
+
+The library package has been renamed to:
+
+```text
+com.jeetarc.simpledownloader
+```
+
+Update any existing imports from `com.jeet.simpledownloader` to `com.jeetarc.simpledownloader`
+
+**2. Update Dependency**
+
+```gradle
+implementation "com.github.jeetarc:SimpleDownloader:1.0.2"
+```
+
+**3. Listener API**
+
+If you are using deprecated Listener callback methods, update them to the new Listener API signatures.
+
 ## v1.0.1
 
 ### Improvements:
@@ -6,6 +52,7 @@
 - Removed the `long id` parameter from `SimpleDownloader.Listener` callback methods for cleaner APIs.
 - Moved output validation checks off the download thread.
 - Added randomized output validation intervals.
+- The ETA text will no longer be shown in notifications when it’s unavailable or being calculated.
 
 ### Fixes:
 
@@ -13,6 +60,11 @@
 - Renamed `Formator` to `Formatter`.
 
 ### Migration:
+
+Update the dependency:
+```gradle
+implementation "com.github.jeetarc:SimpleDownloader:1.0.1"
+```
 
 Add the `DownloadTask` parameter as the last parameter for all `DownloadTask.Listener` callbacks. So replace:
 ```java
@@ -39,10 +91,8 @@ public void onProgress(int progress, long speed, long etaMs, DownloadTask task) 
 }
 ```
 Same for all other methods.
-[More about Listeners](https://github.com/jeetarc/SimpleDownloader/blob/main/README.md#callbacks-and-listeners)
 
 If you are using the SimpleDownloader `Formator` utility, rename it to `Formatter`.
-[More about Utilities](https://github.com/jeetarc/SimpleDownloader/blob/main/README.md#utilities)
 
 ## v1.0.0
 
@@ -89,7 +139,7 @@ SimpleDownloader downloader = SimpleDownloader.getInstance(context);
 DownloadRequest request = DownloadRequest.from(folderUri, FileName.AUTO, fileUrl);
 DownloadTask task = downloader.startDownload(request);
 ```
-Use `SimpleDownloader.builder(context)` and `DownloadRequest.builder()` for more controls. [Read APIs](https://github.com/jeetarc/SimpleDownloader/blob/main/README.md)
+Use `SimpleDownloader.builder(context)` and `DownloadRequest.builder()` for more controls.
 
 #### 3. Update listeners:
 
