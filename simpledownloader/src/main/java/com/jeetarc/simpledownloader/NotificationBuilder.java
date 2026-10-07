@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -15,8 +15,9 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
+import com.jeetarc.simpledownloader.util.Formatter;
 import java.util.List;
-import com.jeet.simpledownloader.util.Formatter;
+
 
 final class NotificationBuilder {
 	static final String GROUP_KEY = "SimpleDownloader_download_group";
@@ -90,7 +91,7 @@ final class NotificationBuilder {
 		.setCategory(Notification.CATEGORY_PROGRESS)
         .setSmallIcon(config.smallIcon)
 		.setOnlyAlertOnce(true) 
-		.setOngoing(true)
+		.setOngoing(!paused || task.mDownloader.mHoldSlotOnPause)
 		.setShowWhen(true)
 		.setWhen(task.mCreatedAt)
 		.setProgress(100, Math.max(0, Math.min(100, progress)), indeterminate);
