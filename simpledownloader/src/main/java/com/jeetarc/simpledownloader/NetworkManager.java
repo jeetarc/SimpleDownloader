@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -12,9 +12,9 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import android.os.Build;
+import com.jeetarc.simpledownloader.util.Logs;
 import java.util.ArrayList;
 import java.util.List;
-import com.jeet.simpledownloader.util.Logs;
 
 
 final class NetworkManager {
@@ -223,7 +223,7 @@ final class NetworkManager {
 				if (networkType != NETWORK_TYPE_UNKNOWN) lastHandledNetworkType = networkType;
 				
 				for (DownloadTask task : downloader.taskManager.snapshot()) {
-					if (task == null || task.status == Status.PAUSED) continue;
+					if (task == null || task.mStatus.isPaused()) continue;
 					
 					synchronized (downloader.mLock) {
 						final boolean active = task.isActive();
@@ -235,7 +235,7 @@ final class NetworkManager {
 								continue;
 							}
 							
-						} else if (task.status == Status.WAITING_FOR_NETWORK) {
+						} else if (task.mStatus == Status.WAITING_FOR_NETWORK) {
 							if (retryOnNetworkGain && !waitingForPreferredNetwork.contains(task)) {
 								downloader.slotManager.resumeOccupiedWaiting(task);
 								continue;

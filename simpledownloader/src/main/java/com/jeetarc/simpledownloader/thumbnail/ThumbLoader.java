@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader.thumbnail;
+package com.jeetarc.simpledownloader.thumbnail;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -12,6 +12,7 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
+import com.jeetarc.simpledownloader.util.Logs;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -26,7 +27,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import com.jeet.simpledownloader.util.Logs;
+
 
 /**
 * Thumbnail loader (used internally).

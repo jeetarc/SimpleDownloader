@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -12,16 +12,17 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
+import com.jeetarc.simpledownloader.util.Logs;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import org.json.JSONObject;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import com.jeet.simpledownloader.util.Logs;
+import java.util.concurrent.ThreadFactory
+import org.json.JSONObject;
 
 
 class TaskDatabase extends SQLiteOpenHelper {
@@ -366,7 +367,7 @@ class TaskDatabase extends SQLiteOpenHelper {
 		values.put(CHECKSUM_VALUE, task.mChecksumValue);
 		values.put(PRIORITY, task.mPriority.name());
 		values.put(WIFI_ONLY, task.mWifiOnly ? 1 : 0);
-		values.put(STATUS, task.status.name());
+		values.put(STATUS, task.mStatus.name());
 		values.put(PROGRESS, task.mProgress);
 		values.put(BYTES_DOWNLOADED, task.mBytesDownloaded);
 		values.put(TOTAL_BYTES, task.mTotalBytes);

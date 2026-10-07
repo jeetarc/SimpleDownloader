@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader.util;
+package com.jeetarc.simpledownloader.util;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -7,6 +7,7 @@ package com.jeet.simpledownloader.util;
 */
 
 import java.util.concurrent.TimeUnit;
+
 
 /** Internal class*/
 public class SpeedHelper {

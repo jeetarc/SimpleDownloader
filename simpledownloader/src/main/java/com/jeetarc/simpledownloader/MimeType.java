@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -8,7 +8,7 @@ package com.jeet.simpledownloader;
 
 /**
  * Use to get automatically resolved MIME type for an output file.
- * Two modes {@code MimeType.AUTO} and {@code MimeType.FROM_NAME}
+ * Tow modes {@code MimeType.AUTO} and {@code MimeType.FROM_NAME}
  */
 public enum MimeType {
 	AUTO, FROM_NAME;
