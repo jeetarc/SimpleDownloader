@@ -1,4 +1,4 @@
-package com.jeet.simpledownloader;
+package com.jeetarc.simpledownloader;
 
 /*
 * Copyright (c) 2026 Jeet / Jeetarc.
@@ -10,19 +10,22 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.documentfile.provider.DocumentFile;
+
+import com.jeetarc.simpledownloader.thumbnail.ThumbLoader;
+import com.jeetarc.simpledownloader.thumbnail.ThumbRequest;
+
 import java.io.File;
 import java.util.Collections;
-import okhttp3.Call;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
-import com.jeet.simpledownloader.thumbnail.ThumbRequest;
-import com.jeet.simpledownloader.thumbnail.ThumbLoader;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import okhttp3.Call;
+
 
 /**
 * {@code DownloadTask} is a live task object and provides access to it's state, output,
@@ -63,7 +66,7 @@ public class DownloadTask {
 	volatile Priority mPriority;
 	volatile boolean mWifiOnly;
 	volatile long mCreatedAt = System.currentTimeMillis();
-	volatile Status status = Status.STARTING;
+	volatile Status mStatus = Status.STARTING;
 	volatile long mBytesDownloaded = 0;
 	volatile long mTotalBytes = -1;
 	volatile long mSpeed = 0;
@@ -100,78 +103,22 @@ public class DownloadTask {
 	volatile boolean mChecksumFailed = false;
 	volatile boolean mThumbnailUrlAttempted;
 	
-	/** Receives updates for this task only. */
+	/** Receives updates only for the tasks it attached to. */
 	public interface Listener {
-		default void onStart(DownloadTask task) { onStart(); }
-		default void onQueued(int position, DownloadTask task) { onQueued(position); }
-		default void onProgress(int progress, long speed, long etaMs, DownloadTask task) { onProgress(progress, speed, etaMs); }
-		default void onComplete(Uri outputUri, DownloadTask task) { onComplete(outputUri); }
-		default void onError(Uri outputUri, Exception error, DownloadTask task) { onError(outputUri, error); }
-		default void onPaused(DownloadTask task) { onPaused(); }
-		default void onResumed(DownloadTask task) { onResumed(); }
-		default void onCancelled(DownloadTask task) { onCancelled(); }
-		default void onRemoved(boolean outputDeleted, DownloadTask task) { onRemoved(outputDeleted); }
-		default void onRetry(int attempt, DownloadTask task) { onRetry(attempt); }
-		default void onWaitingForNetwork(int networkType, DownloadTask task) { onWaitingForNetwork(networkType); }
-		default void onStatusChanged(Status status, DownloadTask task) { onStatusChanged(status); }
-		default void onActiveChanged(boolean isActive, DownloadTask task) { onActiveChanged(isActive); }
-		default void onLifecycleChanged(int lifecycle, DownloadTask task) { onLifecycleChanged(lifecycle); }
-		
-		/** @deprecated Use {@link #onStart(DownloadTask)} */
-		@Deprecated
-		default void onStart() {}
-		
-		/** @deprecated Use {@link #onQueued(int, DownloadTask)} */
-		@Deprecated
-		default void onQueued(int position) {}
-		
-		/** @deprecated Use {@link #onProgress(int, long, long, DownloadTask)} */
-		@Deprecated
-		default void onProgress(int progress, long speed, long etaMs) {}
-		
-		/** @deprecated Use {@link #onComplete(Uri, DownloadTask)} */
-		@Deprecated
-		default void onComplete(Uri outputUri) {}
-		
-		/** @deprecated Use {@link #onError(Uri, Exception, DownloadTask)} */
-		@Deprecated
-		default void onError(Uri outputUri, Exception error) {}
-		
-		/** @deprecated Use {@link #onPaused(DownloadTask)} */
-		@Deprecated
-		default void onPaused() {}
-		
-		/** @deprecated Use {@link #onResumed(DownloadTask)} */
-		@Deprecated
-		default void onResumed() {}
-		
-		/** @deprecated Use {@link #onCancelled(DownloadTask)} */
-		@Deprecated
-		default void onCancelled() {}
-		
-		/** @deprecated Use {@link #onRemoved(boolean, DownloadTask)} */
-		@Deprecated
-		default void onRemoved(boolean outputDeleted) {}
-		
-		/** @deprecated Use {@link #onRetry(int, DownloadTask)} */
-		@Deprecated
-		default void onRetry(int attempt) {}
-		
-		/** @deprecated Use {@link #onWaitingForNetwork(int, DownloadTask)} */
-		@Deprecated
-		default void onWaitingForNetwork(int networkType) {}
-		
-		/** @deprecated Use {@link #onStatusChanged(Status, DownloadTask)} */
-		@Deprecated
-		default void onStatusChanged(Status status) {}
-		
-		/** @deprecated Use {@link #onActiveChanged(boolean, DownloadTask)} */
-		@Deprecated
-		default void onActiveChanged(boolean isActive) {}
-		
-		/** @deprecated Use {@link #onLifecycleChanged(int, DownloadTask)} */
-		@Deprecated
-		default void onLifecycleChanged(int lifecycle) {}
+		default void onStart(DownloadTask task) {}
+		default void onQueued(int position, DownloadTask task) {}
+		default void onProgress(int progress, long speed, long etaMs, DownloadTask task) {}
+		default void onPaused(DownloadTask task) {}
+		default void onResumed(DownloadTask task) {}
+		default void onCancelled(DownloadTask task) {}
+		default void onComplete(Uri outputUri, DownloadTask task) {}
+		default void onError(Uri outputUri, Exception error, DownloadTask task) {}
+		default void onRemoved(boolean outputDeleted, DownloadTask task) {}
+		default void onRetry(int attempt, DownloadTask task) {}
+		default void onWaitingForNetwork(int networkType, DownloadTask task) {}
+		default void onStatusChanged(Status status, DownloadTask task) {}
+		default void onActiveChanged(boolean isActive, DownloadTask task) {}
+		default void onLifecycleChanged(int lifecycle, DownloadTask task) {}
 	}
 	
 	DownloadTask(SimpleDownloader downloader, DownloadRequest request) {
@@ -256,41 +203,47 @@ public class DownloadTask {
 		mCreatedAt = state.createdAt > 0 ? state.createdAt : System.currentTimeMillis();
 		mETag = state.eTag;
 		mLastModified = state.lastModified;
-		status = state.status == null ? Status.PAUSED : state.status;
+		mStatus = state.status == null ? Status.PAUSED : state.status;
 		mLastSyncBytes = state.bytesDownloaded;
 		mLastSyncTime = System.currentTimeMillis();
 		mChecksumFailed = state.checksumFailed;
 	}
 	
 	public void pause() {
-		if (status == Status.DOWNLOADING || status == Status.CONNECTING || status == Status.RETRYING) {
+		if (mStatus.isActive()) {
 			mPauseRequested = true;
 			cancelRunningCall();
 			return;
 		}
 		
-		if (status == Status.QUEUED || status == Status.WAITING_FOR_NETWORK) {
+		if (mStatus.isQueued() || mStatus.isWaitingForNetwork()) {
 			synchronized (mDownloader.mLock) {
 				mDownloader.slotManager.removeQueuedTask(this);
 				setStatus(Status.PAUSED);
 			}
 			
 			EventDispatcher.onPaused(this);
+			mDownloader.slotManager.finishTask(this, false, !mDownloader.mHoldSlotOnPause);
 			return;
 		}
 	}
 	
 	public void resume() {
-		if (status != Status.PAUSED) return;
+		if (!mStatus.isPaused()) return;
 		mNotificationDismissed = false;
 		resetStopFlags();
+		
+		synchronized (mDownloader.mLock) {
+			mDownloader.mRestoreAutoDispatchBlocked = false;
+		}
+		
 		mDownloader.slotManager.resumeOccupiedTask(this);
 	}
 	
 	public void cancel() {
-		if (status == Status.COMPLETED || status == Status.FAILED || status == Status.CANCELLED) return;
+		if (mStatus.isFinished()) return;
 		
-		if (status == Status.QUEUED || status == Status.PAUSED || status == Status.WAITING_FOR_NETWORK) {
+		if (mStatus.isQueued() || mStatus.isPaused() || mStatus.isWaitingForNetwork()) {
 			mDownloader.slotManager.removeQueuedTask(this);
 			setStatus(Status.CANCELLED);
 			OutputResolver.deleteOutput(this);
@@ -299,14 +252,14 @@ public class DownloadTask {
 			return;
 		}
 		
-		if (isActive()) {
+		if (mStatus.isActive()) {
 			mCancelRequested = true;
 			cancelRunningCall();
 		}
 	}
 	
 	public void remove() {
-		if (isActive()) {
+		if (mStatus.isActive()) {
 			mRemoveRequested = true;
 			cancelRunningCall();
 			return;
@@ -332,7 +285,7 @@ public class DownloadTask {
 	}
 	
 	public void retry() {
-		if (status != Status.FAILED) return;
+		if (!mStatus.isFailed()) return;
 		cancelThumbnailRequest();
 		mThumbnailUrlAttempted = false;
 		
@@ -348,17 +301,19 @@ public class DownloadTask {
 	}
 	
 	public void requeue() {
-		if (status == Status.COMPLETED || status == Status.FAILED || status == Status.CANCELLED || status == Status.QUEUED) return;
-		if (isActive()) {
+		if (mStatus.isFinished() || mStatus.isQueued()) return;
+		
+		if (mStatus.isActive()) {
 			mRequeueRequested = true;
 			cancelRunningCall();
 			return;
 		}
 		
-		if (status == Status.PAUSED || status == Status.WAITING_FOR_NETWORK) {
+		if (mStatus.isPaused() || mStatus.isWaitingForNetwork()) {
 			synchronized (mDownloader.mLock) {
 				mDownloader.networkManager.getWaitingForPreferredNetwork().remove(this);
 				mDownloader.slotManager.finishTask(this, false, true);
+				mDownloader.mRestoreAutoDispatchBlocked = false;
 				mDownloader.slotManager.enqueueOrSubmitLocked(this, false);
 			}
 		}
@@ -368,7 +323,7 @@ public class DownloadTask {
 		mWifiOnly = enable;
 		if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.updateWifiOnly(mId, enable);
 		
-		if (!enable && status == Status.WAITING_FOR_NETWORK) {
+		if (!enable && mStatus == Status.WAITING_FOR_NETWORK) {
 			synchronized (mDownloader.mLock) {
 				mDownloader.networkManager.getWaitingForPreferredNetwork().remove(this);
 				resetStopFlags();
@@ -377,7 +332,7 @@ public class DownloadTask {
 			return this;
 		}
 		
-		if (enable && isActive() && mDownloader.networkManager.isNetworkAvailable() && mDownloader.networkManager.getNetworkType() != SimpleDownloader.NETWORK_TYPE_WIFI) {
+		if (enable && mStatus.isActive() && mDownloader.networkManager.isNetworkAvailable() && mDownloader.networkManager.getNetworkType() != SimpleDownloader.NETWORK_TYPE_WIFI) {
 			mNetworkPaused = true;
 			cancelRunningCall();
 		}
@@ -395,7 +350,7 @@ public class DownloadTask {
 		mLockedInQueue = enable;
 		mDownloader.taskManager.sortTasks();
 		if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.updateLockedInQueue(mId, enable);
-		if (status == Status.QUEUED) mDownloader.slotManager.onLockedStateChanged(this);
+		if (mStatus == Status.QUEUED) mDownloader.slotManager.onLockedStateChanged(this);
 		return this;
 	}
 	
@@ -403,12 +358,25 @@ public class DownloadTask {
 		if (!isQueued()) return;
 		mForceDownload = true;
 		resetStopFlags();
+		
+		synchronized (mDownloader.mLock) {
+			mDownloader.mRestoreAutoDispatchBlocked = false;
+		}
+		
 		mDownloader.slotManager.submitTask(this, true);
 	}
 	
 	public DownloadTask addListener(Listener listener) {
 		if (listener != null && !mListeners.contains(listener)) mListeners.add(listener);
 		return this;
+	}
+	
+	public boolean hasListeners() {
+		return !mListeners.isEmpty();
+	}
+	
+	public boolean hasListener(Listener listener) {
+		return listener != null && mListeners.contains(listener);
 	}
 	
 	public DownloadTask removeListener(Listener listener) {
@@ -441,7 +409,7 @@ public class DownloadTask {
 	@NonNull
 	public Priority getPriority() { return mPriority; }
 	@NonNull
-	public Status getStatus() { return status; }
+	public Status getStatus() { return mStatus; }
 	@Nullable
 	public Exception getError() { return mLastError; }
 	@NonNull
@@ -465,17 +433,17 @@ public class DownloadTask {
 	public Uri getOverwriteUri() { return mOverwriteUri; }
 	@Nullable
 	public String getOverwritePath() { return mOverwritePath; }
-	public boolean canPause() { return isActive() || status == Status.QUEUED || status == Status.WAITING_FOR_NETWORK; }
-	public boolean canResume() { return status == Status.PAUSED; }
-	public boolean canRetry() { return status == Status.FAILED; }    
-	public boolean isWaitingForNetwork() { return status == Status.WAITING_FOR_NETWORK; }
-	public boolean isQueued() { return status == Status.QUEUED; }
-	public boolean isPaused() { return status == Status.PAUSED; }
-	public boolean isComplete() { return status == Status.COMPLETED; }
-	public boolean isActive() { return status == Status.DOWNLOADING || status == Status.CONNECTING || status == Status.RETRYING; }
-	public boolean isFailed() { return status == Status.FAILED; }
-	public boolean isCancelled() { return status == Status.CANCELLED; }
-	public boolean isFinished() { return status == Status.COMPLETED || status == Status.FAILED || status == Status.CANCELLED; }        
+	public boolean canPause() { return mStatus.isActive() || mStatus.isQueued() || mStatus.isWaitingForNetwork(); }
+	public boolean canResume() { return mStatus.isPaused(); }
+	public boolean canRetry() { return mStatus.isFailed(); }    
+	public boolean isWaitingForNetwork() { return mStatus.isWaitingForNetwork(); }
+	public boolean isQueued() { return mStatus.isQueued(); }
+	public boolean isPaused() { return mStatus.isPaused(); }
+	public boolean isComplete() { return mStatus.isComplete(); }
+	public boolean isActive() { return mStatus.isActive(); }
+	public boolean isFailed() { return mStatus.isFailed(); }
+	public boolean isCancelled() { return mStatus.isCancelled(); }
+	public boolean isFinished() { return mStatus.isFinished(); }    
 	public boolean isOccupiedSlot() { return mDownloader.slotManager.isOccupiedSlot(this); }
 	public boolean isDeleteOnRemoval() { return mDeleteOnRemoval; }
 	public boolean isLockedInQueue() { return mLockedInQueue; }
@@ -494,12 +462,12 @@ public class DownloadTask {
 	}
 	
 	void setStatus(final Status newStatus) {
-		final Status oldStatus = status;
+		final Status oldStatus = mStatus;
 		if (newStatus == null || oldStatus == newStatus) return;
-		final boolean wasActive = isStartStatus(oldStatus);
-		final boolean isNowActive = isStartStatus(newStatus);
+		final boolean wasActive = oldStatus.isActive();
+		final boolean isNowActive = newStatus.isActive();
 		final boolean activeChanged = wasActive != isNowActive;
-		status = newStatus;
+		mStatus = newStatus;
 		
 		if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.updateStatus(mId, newStatus, mBytesDownloaded, mProgress);
 		mDownloader.taskManager.sortTasks();
@@ -508,17 +476,13 @@ public class DownloadTask {
 	}
 	
 	void setStatusRestored(Status newStatus) {
-		Status oldStatus = status;
+		Status oldStatus = mStatus;
 		if (oldStatus == newStatus) return;
-		boolean wasActive = isStartStatus(oldStatus);
-		boolean isNowActive = isStartStatus(newStatus);
+		boolean wasActive = oldStatus.isActive();
+		boolean isNowActive = newStatus.isActive();
 		boolean activeChanged = wasActive != isNowActive;
-		status = newStatus;
+		mStatus = newStatus;
 		EventDispatcher.onStatusFlow(this, newStatus, activeChanged, isNowActive);
-	}
-	
-	private boolean isStartStatus(Status s) {
-		return s == Status.CONNECTING || s == Status.DOWNLOADING || s == Status.RETRYING;
 	}
 	
 	void postToMain(Runnable r) {
@@ -556,8 +520,8 @@ public class DownloadTask {
 		cancelFuture();
 		clearFuture();
 		
-		if (isActive() || status == Status.WAITING_FOR_NETWORK || status == Status.STARTING) {
-			status = Status.PAUSED;
+		if (isActive() || mStatus == Status.WAITING_FOR_NETWORK || mStatus == Status.STARTING) {
+			mStatus = Status.PAUSED;
 			mSpeed = 0;
 			mEta = -1;
 		}
@@ -585,7 +549,7 @@ public class DownloadTask {
 		mLastSyncBytes = 0L;
 		mLastSpeedForAutoConcurrency = 0L;
 		
-		if (status != Status.FAILED) {
+		if (mStatus != Status.FAILED) {
 			// Completed and cancelled tasks cannot be retry.
 			mETag = null;
 			mLastModified = null;
