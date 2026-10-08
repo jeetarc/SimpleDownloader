@@ -1153,7 +1153,6 @@ You do not need to call `shutdown()` normally or when an Activity is destroyed. 
 
 ## Utilities
 
-imports:
 ```java
 import com.jeetarc.simpledownloader.util.<ClassName>;
 ```
