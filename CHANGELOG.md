@@ -8,6 +8,7 @@ Can be configured via `SimpleDownloader.builder()` or a `downloader` instance.
 - Added `.hasListeners()` and `.hasListener(Listener)` methods to both `DownloadTask` and `SimpleDownloader`.
 - Added `.hasObservers()` and `.hasObserver(Observer)` methods to `SimpleDownloader`.
 - Expanded `Status` with helper methods - `isQueued()`, `isPaused()`, `isComplete()`, `isFailed()`, `isCancelled()`, and more.
+- Auto-restore is now enabled by default, disable it by calling `.setAutoRestore(false)` via `SimpleDownloader.builder()`.
 - Added `Formatter.formatTime(long timeMillis, String format)` for timestamp formatting.
 -  You can now get the current library version by using `SimpleDownloader.VERSION`.
 
