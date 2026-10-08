@@ -32,10 +32,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Upload APK
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: SimpleDownloader-apk
           path: app/build/outputs/apk/release/*.apk
-
-# For contributers: The built apk will not automatically released.
-# Should be download from the run page and attach to a release.
