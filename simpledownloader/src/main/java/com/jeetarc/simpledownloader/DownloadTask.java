@@ -435,15 +435,16 @@ public class DownloadTask {
 	public String getOverwritePath() { return mOverwritePath; }
 	public boolean canPause() { return mStatus.isActive() || mStatus.isQueued() || mStatus.isWaitingForNetwork(); }
 	public boolean canResume() { return mStatus.isPaused(); }
-	public boolean canRetry() { return mStatus.isFailed(); }    
-	public boolean isWaitingForNetwork() { return mStatus.isWaitingForNetwork(); }
+	public boolean canRetry() { return mStatus.isFailed(); }
 	public boolean isQueued() { return mStatus.isQueued(); }
-	public boolean isPaused() { return mStatus.isPaused(); }
+	public boolean isDownloading() { return mStatus.isDownloading(); }
+    public boolean isPaused() { return mStatus.isPaused(); }
 	public boolean isComplete() { return mStatus.isComplete(); }
 	public boolean isActive() { return mStatus.isActive(); }
 	public boolean isFailed() { return mStatus.isFailed(); }
 	public boolean isCancelled() { return mStatus.isCancelled(); }
-	public boolean isFinished() { return mStatus.isFinished(); }    
+	public boolean isWaitingForNetwork() { return mStatus.isWaitingForNetwork(); }
+    public boolean isFinished() { return mStatus.isFinished(); }    
 	public boolean isOccupiedSlot() { return mDownloader.slotManager.isOccupiedSlot(this); }
 	public boolean isDeleteOnRemoval() { return mDeleteOnRemoval; }
 	public boolean isLockedInQueue() { return mLockedInQueue; }
