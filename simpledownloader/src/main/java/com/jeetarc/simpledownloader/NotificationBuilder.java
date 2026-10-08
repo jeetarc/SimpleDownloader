@@ -76,7 +76,8 @@ final class NotificationBuilder {
 			.setGroupSummary(true);
 		} else {  
 			b.setContentTitle(title + " Running");
-		}  
+		}
+        
 		if (foregroundMode) b.setCategory(Notification.CATEGORY_SERVICE);
 		return b.build();
 	}  
@@ -94,8 +95,9 @@ final class NotificationBuilder {
 		.setOngoing(!paused || task.mDownloader.mHoldSlotOnPause)
 		.setShowWhen(true)
 		.setWhen(task.mCreatedAt)
-		.setProgress(100, Math.max(0, Math.min(100, progress)), indeterminate);
-		
+		.setProgress(100, Math.max(0, Math.min(100, progress)), indeterminate)
+		.setDeleteIntent(serviceAction(DownloadService.ACTION_DELETE, task.mId));
+         
 		if (groupAllowed()) b.setGroup(GROUP_KEY);
 		if (subText != null) b.setSubText(subText);
 		if (thumb != null) b.setLargeIcon(thumb);
