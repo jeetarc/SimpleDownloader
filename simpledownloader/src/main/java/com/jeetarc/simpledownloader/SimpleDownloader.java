@@ -39,6 +39,8 @@ import okhttp3.OkHttpClient;
 * The task database is shared by all instances.</p>
 */
 public class SimpleDownloader {
+	public static final String VERSION = "1.0.2";
+	
 	public static final int NETWORK_TYPE_NONE = NetworkManager.NETWORK_TYPE_NONE;
 	public static final int NETWORK_TYPE_UNKNOWN = NetworkManager.NETWORK_TYPE_UNKNOWN;
 	public static final int NETWORK_TYPE_WIFI = NetworkManager.NETWORK_TYPE_WIFI;
@@ -187,7 +189,7 @@ public class SimpleDownloader {
 		private int bufferSize = 16 * 1024;
 		private RetryPolicy retryPolicy = RetryPolicy.builder().build();
 		private boolean downloadOnSlotFree = true;
-        private boolean holdSlotOnPause = false;
+		private boolean holdSlotOnPause = false;
 		private boolean resumeOnNetworkGain = true;
 		private SimpleDownloader builtDownloader;
 		
@@ -285,7 +287,7 @@ public class SimpleDownloader {
 		
 		public Builder restoreTasks() {
 			restoreAll = true;
-            autoRestore = false;
+			autoRestore = false;
 			return this;
 		}
 		
@@ -294,7 +296,7 @@ public class SimpleDownloader {
 			restoreFiltered = true;
 			restoreField = field;
 			restoreValue = value;
-            autoRestore = false;
+			autoRestore = false;
 			return this;
 		}
 		
@@ -717,14 +719,14 @@ public class SimpleDownloader {
 		if (observer != null) taskManager.addObserver(observer);
 		return this;
 	}
-    
-    public boolean hasObservers() {
-        return taskManager.hasObservers();
-    }
-    
-    public boolean hasObserver(TaskListObserver observer) {
-        return taskManager.hasObserver(observer);
-    }
+	
+	public boolean hasObservers() {
+		return taskManager.hasObservers();
+	}
+	
+	public boolean hasObserver(TaskListObserver observer) {
+		return taskManager.hasObserver(observer);
+	}
 	
 	public SimpleDownloader removeObserver(TaskListObserver observer) {
 		taskManager.removeObserver(observer);
@@ -807,7 +809,7 @@ public class SimpleDownloader {
 		
 		taskDatabase.saveTask(task);
 		ensureAdaptiveInitializedLocked();
-        mRestoreAutoDispatchBlocked = false;
+		mRestoreAutoDispatchBlocked = false;
 		slotManager.enqueueOrSubmitLocked(task, false);
 		return task;
 	}
