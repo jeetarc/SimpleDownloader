@@ -1,4 +1,5 @@
 ## v1.0.2
+improved pause and concurrency handling, better restore behavior, notifications, foreground service management, and HTTP response handling.
 
 ### Added
 
@@ -8,6 +9,7 @@ Can be configured via `SimpleDownloader.builder()` or a `downloader` instance.
 - Added `.hasObservers()` and `.hasObserver(Observer)` methods to `SimpleDownloader`.
 - Expanded `Status` with helper methods - `isQueued()`, `isPaused()`, `isComplete()`, `isFailed()`, `isCancelled()`, and more.
 - Added `Formatter.formatTime(long timeMillis, String format)` for timestamp formatting.
+-  You can now get the current library version by using `SimpleDownloader.VERSION`.
 
 ### Improvements
 
