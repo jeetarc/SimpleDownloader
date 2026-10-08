@@ -39,12 +39,15 @@ import java.util.concurrent.RejectedExecutionException;
 public final class DownloadService extends Service {
 	static final String ACTION_ATTACH_LIFECYCLE = "com.jeetarc.simpledownloader.action.ATTACH_LIFECYCLE";
 	static final String ACTION_ATTACH_ACTIVE = "com.jeetarc.simpledownloader.action.ATTACH_ACTIVE";
+	static final String ACTION_ATTACH_RESUME = "com.jeetarc.simpledownloader.action.ATTACH_RESUME";
 	static final String ACTION_PAUSE = "com.jeetarc.simpledownloader.action.PAUSE";
 	static final String ACTION_RESUME = "com.jeetarc.simpledownloader.action.RESUME";
 	static final String ACTION_CANCEL = "com.jeetarc.simpledownloader.action.CANCEL";
 	static final String ACTION_RETRY = "com.jeetarc.simpledownloader.action.RETRY";
 	static final String ACTION_DISMISS = "com.jeetarc.simpledownloader.action.DISMISS";
+	static final String ACTION_DELETE = "com.jeetarc.simpledownloader.action.DELETE";
 	static final String EXTRA_TASK_ID = "SimpleDownloader_task_id";
+	
 	private static volatile DownloadService runningService;
 	private final ExecutorService notificationExecutor = Executors.newSingleThreadExecutor();
 	private NotificationManager notificationManager;
@@ -99,8 +102,12 @@ public final class DownloadService extends Service {
 	}
 	
 	static void onTaskResumed(DownloadTask task) {
+		if (task == null || task.mContext == null || !task.mDownloader.areNotificationsEnabled()) return;
+		task.mNotificationDismissed = false;
 		DownloadService service = runningService;
+		
 		if (service != null) service.handleResumed(task);
+		else startServiceForTask(task, ACTION_ATTACH_RESUME);
 	}
 	
 	static void onTaskWaitingForNetwork(DownloadTask task) {
@@ -252,6 +259,11 @@ public final class DownloadService extends Service {
 			return START_NOT_STICKY;
 		}
 		
+		if (ACTION_DELETE.equals(action)) {
+			handleDismiss(taskId);
+			return START_NOT_STICKY;
+		}
+		
 		if (ACTION_ATTACH_LIFECYCLE.equals(action)) {
 			DownloadTask task = findTask(taskId);
 			if (task != null) handleLifecycleStarted(task);
@@ -261,6 +273,12 @@ public final class DownloadService extends Service {
 		if (ACTION_ATTACH_ACTIVE.equals(action)) {
 			DownloadTask task = findTask(taskId);
 			if (task != null) handleBecameActive(task);
+			return START_NOT_STICKY;
+		}
+		
+		if (ACTION_ATTACH_RESUME.equals(action)) {
+			DownloadTask task = findTask(taskId);
+			if (task != null) handleResumed(task);
 			return START_NOT_STICKY;
 		}
 		
@@ -392,7 +410,6 @@ public final class DownloadService extends Service {
 		if (task == null || !task.isActive()) return;
 		if (!isNotificationAllowed(task)) return;
 		if (task.mNotificationDismissed) return;
-		ensureActiveTaskInGroup(task);
 		postProgressNotification(task, resolveProgressText(task), speedSubText(task), task.mProgress, false, false, true);
 	}
 	
@@ -487,7 +504,7 @@ public final class DownloadService extends Service {
 	private void handleDismiss(long taskId) {
 		DownloadTask task = findTask(taskId);
 		
-		if (task != null) {
+		if (task != null && !task.mNotificationDismissed) {
 			task.cancelThumbnailRequest();
 			task.mNotificationDismissed = true;
 			task.pause();
@@ -658,8 +675,8 @@ public final class DownloadService extends Service {
 			
 		} else {
 			tryStopForeground(false);
-            Notification summary = notificationBuilder.buildSummary(count, false);
-            postNotification(notificationBuilder.summaryNotificationId(), summary);
+			Notification summary = notificationBuilder.buildSummary(count, false);
+			postNotification(notificationBuilder.summaryNotificationId(), summary);
 		}
 	}
 	
