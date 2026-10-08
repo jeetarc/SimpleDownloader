@@ -393,7 +393,7 @@ public final class DownloadService extends Service {
 		if (!isNotificationAllowed(task)) return;
 		if (task.mNotificationDismissed) return;
 		ensureActiveTaskInGroup(task);
-		postProgressNotification(task, resolveProgressText(task), speedSubText(task.mSpeed), task.mProgress, false, false, true);
+		postProgressNotification(task, resolveProgressText(task), speedSubText(task), task.mProgress, false, false, true);
 	}
 	
 	private void handlePaused(DownloadTask task) {
@@ -411,7 +411,7 @@ public final class DownloadService extends Service {
 		task.mNotificationDismissed = false;
 		ensureActiveTaskInGroup(task);
 		String text = "Resuming • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
-		postProgressNotification(task, text, speedSubText(task.mSpeed), task.mProgress, false, false, true);
+		postProgressNotification(task, text, speedSubText(task), task.mProgress, false, false, true);
 	}
 	
 	private void handleWaitingForNetwork(DownloadTask task) {
@@ -532,7 +532,7 @@ public final class DownloadService extends Service {
 			clearTaskNotificationBuilder(task.mId);
 			
 		} else if (groupTasks.contains(task.mId)) {
-			postProgressNotification(task, resolveProgressText(task), speedSubText(task.mSpeed), task.mProgress, false, task.mStatus == Status.PAUSED, true);
+			postProgressNotification(task, resolveProgressText(task), speedSubText(task), task.mProgress, false, task.mStatus == Status.PAUSED, true);
 		}
 	}
 	
@@ -561,9 +561,9 @@ public final class DownloadService extends Service {
 		return getEtaText(task.mEta) + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
 	}
 	
-	private String speedSubText(long speed) {
-		if (speed < 0L) return null;
-		return Formatter.formatSpeed(speed);
+	private String speedSubText(DownloadTask t) {
+		if (!t.mStatus.isDownloading()) return null;
+		return Formatter.formatSpeed(t.mSpeed);
 	}
 	
 	private String getEtaText(long eta) {
