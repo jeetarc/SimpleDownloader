@@ -440,6 +440,7 @@ More:
 ### Task Controls and information
 
 ```java
+task.pause();
 task.resume();
 task.cancel();
 task.retry();
