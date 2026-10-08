@@ -109,7 +109,6 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				DownloadService.onTaskQueued(task);
 				dispatchQueued(dl, pos, task);
 				
 				for (DownloadTask.Listener l : safe(tl)) {
@@ -121,6 +120,8 @@ final class EventDispatcher {
 				}
 			}
 		});
+		
+		DownloadService.onTaskQueued(task);
 	}
 	
 	static void onProgress(final DownloadTask task) {
@@ -155,7 +156,6 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				DownloadService.onTaskPaused(task);
 				dispatchPaused(dl, task);
 				
 				for (DownloadTask.Listener l : safe(tl)) {
@@ -167,6 +167,8 @@ final class EventDispatcher {
 				}
 			}
 		});
+		
+		DownloadService.onTaskPaused(task);
 	}
 	
 	static void onResumed(final DownloadTask task) {
@@ -176,7 +178,6 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				DownloadService.onTaskResumed(task);
 				dispatchResumed(dl, task);
 				
 				for (DownloadTask.Listener l : safe(tl)) {
@@ -188,6 +189,8 @@ final class EventDispatcher {
 				}
 			}
 		});
+		
+		DownloadService.onTaskResumed(task);
 	}
 	
 	static void onCancelled(final DownloadTask task) {
@@ -197,7 +200,6 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				DownloadService.onTaskCancelled(task);
 				dispatchCancelled(dl, task);
 				
 				for (DownloadTask.Listener l : safe(tl)) {
@@ -212,6 +214,8 @@ final class EventDispatcher {
 				task.mListeners.clear();
 			}
 		});
+		
+		DownloadService.onTaskCancelled(task);
 	}
 	
 	static void onComplete(final DownloadTask task) {
@@ -222,7 +226,6 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				DownloadService.onTaskComplete(task);
 				dispatchComplete(dl, outputUri, task);
 				
 				for (DownloadTask.Listener l : safe(tl)) {
@@ -237,6 +240,8 @@ final class EventDispatcher {
 				task.mListeners.clear();
 			}
 		});
+		
+		DownloadService.onTaskComplete(task);
 	}
 	
 	static void onError(final DownloadTask task, final Exception error) {
@@ -247,7 +252,6 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				DownloadService.onTaskError(task, error);
 				dispatchError(dl, outputUri, error, task);
 				
 				for (DownloadTask.Listener l : safe(tl)) {
@@ -261,6 +265,8 @@ final class EventDispatcher {
 				dispatchLifecycleEnded(task, tl, dl);
 			}
 		});
+		
+		DownloadService.onTaskError(task, error);
 	}
 	
 	static void onRemoved(final DownloadTask task, final boolean deleted) {
@@ -270,7 +276,6 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				DownloadService.onTaskRemoved(task);
 				dispatchRemoved(dl, deleted, task);
 				
 				for (DownloadTask.Listener l : safe(tl)) {
@@ -285,6 +290,8 @@ final class EventDispatcher {
 				task.mListeners.clear();
 			}
 		});
+		
+		DownloadService.onTaskRemoved(task);
 	}
 	
 	static void onRetry(final DownloadTask task, final int attempt) {
@@ -294,7 +301,6 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				DownloadService.onTaskRetry(task, attempt);
 				dispatchRetry(dl, attempt, task);
 				
 				for (DownloadTask.Listener l : safe(tl)) {
@@ -306,6 +312,8 @@ final class EventDispatcher {
 				}
 			}
 		});
+		
+		DownloadService.onTaskRetry(task, attempt);
 	}
 	
 	static void onWaitingForNetwork(final DownloadTask task) {
@@ -316,7 +324,6 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				DownloadService.onTaskWaitingForNetwork(task);
 				dispatchWaiting(dl, networkType, task);
 				
 				for (DownloadTask.Listener l : safe(tl)) {
@@ -328,6 +335,8 @@ final class EventDispatcher {
 				}
 			}
 		});
+		
+		DownloadService.onTaskWaitingForNetwork(task);
 	}
 	
 	static void onActiveChanged(final DownloadTask task, final boolean active) {
@@ -353,14 +362,19 @@ final class EventDispatcher {
 	static void onLifecycleChanged(final DownloadTask task, final int lifecycle) {
 		final List<DownloadTask.Listener> tl = taskSnapshot(task);
 		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
+		final boolean started = lifecycle == DownloadTask.LIFECYCLE_STARTED;
+		final boolean ended = lifecycle == DownloadTask.LIFECYCLE_ENDED;
 		
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				if (lifecycle == DownloadTask.LIFECYCLE_STARTED) dispatchLifecycleStarted(task, tl, dl);
-				else if (lifecycle == DownloadTask.LIFECYCLE_ENDED) dispatchLifecycleEnded(task, tl, dl);
+				if (started) dispatchLifecycleStarted(task, tl, dl);
+				else if (ended) dispatchLifecycleEnded(task, tl, dl);
 			}
 		});
+		
+		if (started) DownloadService.onTaskLifecycleStarted(task);
+		else if (ended) DownloadService.onTaskLifecycleEnded(task);
 	}
 	
 	static void onStatusFlow(final DownloadTask task, final Status status, final boolean activeChanged, final boolean active) {
@@ -370,10 +384,7 @@ final class EventDispatcher {
 		task.postToMain(new Runnable() {
 			@Override
 			public void run() {
-				if (active) {
-					boolean started = dispatchLifecycleStarted(task, tl, dl);
-					if (!started) DownloadService.onTaskBecameActive(task);
-				}
+				if (active) dispatchLifecycleStarted(task, tl, dl);
 				
 				if (activeChanged) {
 					dispatchActive(dl, active, task);
@@ -398,13 +409,16 @@ final class EventDispatcher {
 				}
 			}
 		});
+		
+		if (active && task.mLifecycleStarted && !task.mLifecycleEnded) {
+			DownloadService.onTaskBecameActive(task);
+		}
 	}
 	
 	private static boolean dispatchLifecycleStarted(DownloadTask task, List<DownloadTask.Listener> tl, List<SimpleDownloader.Listener> dl) {
 		if (task == null || task.mLifecycleStarted || task.mLifecycleEnded) return false;
 		task.mLifecycleStarted = true;
 		task.mNotificationDismissed = false;
-		DownloadService.onTaskLifecycleStarted(task);
 		dispatchLifecycle(dl, DownloadTask.LIFECYCLE_STARTED, task);
 		
 		for (DownloadTask.Listener l : safe(tl)) {
@@ -420,7 +434,6 @@ final class EventDispatcher {
 	private static void dispatchLifecycleEnded(DownloadTask task, List<DownloadTask.Listener> tl, List<SimpleDownloader.Listener> dl) {
 		if (task == null || task.mLifecycleEnded) return;
 		task.mLifecycleEnded = true;
-		DownloadService.onTaskLifecycleEnded(task);
 		dispatchLifecycle(dl, DownloadTask.LIFECYCLE_ENDED, task);
 		
 		for (DownloadTask.Listener l : safe(tl)) {
