@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/SimpleDownloader-logo-rounded-512x512px.png" style="width: 30%;" />
+  <img src="assets/SimpleDownloader-logo-rounded-512x512px.png" style="width: 20%;" />
 </p>
 
 # SimpleDownloader
