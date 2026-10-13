@@ -60,25 +60,10 @@ final class EventDispatcher {
 		});
 	}
 	
-	static void onTaskUpdated(final TaskManager manager, final DownloadTask task) {
-		if (manager == null || task == null) return;
-		final List<TaskListObserver> observers = manager.snapshotObservers();
-		if (observers.isEmpty()) return;
-		
-		MAIN_HANDLER.post(new Runnable() {
-			@Override
-			public void run() {
-				for (TaskListObserver observer : observers) {
-					if (!manager.hasObserver(observer)) continue;
-					
-					try {
-						observer.onTaskUpdated(task.mId, task);
-					} catch (Throwable e) {
-						log(e);
-					}
-				}
-			}
-		});
+	static void onTaskUpdated(final DownloadTask task) {
+		if (task.mTaskUpdatePending) return;
+		task.mTaskUpdatePending = true;
+		task.postToMain(task.mTaskUpdateRunnable);
 	}
 	
 	static void onStart(final DownloadTask task) {
@@ -125,28 +110,10 @@ final class EventDispatcher {
 	}
 	
 	static void onProgress(final DownloadTask task) {
-		final int progress = task.mProgress;
-		final long speed = task.mSpeed;
-		final long eta = task.mEta;
-		final List<DownloadTask.Listener> tl = taskSnapshot(task);
-		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
-		
-		task.postToMain(new Runnable() {
-			@Override
-			public void run() {
-				dispatchProgress(dl, progress, speed, eta, task);
-				
-				for (DownloadTask.Listener l : safe(tl)) {
-					try {
-						l.onProgress(progress, speed, eta, task);
-					} catch (Throwable e) {
-						log(e);
-					}
-				}
-				
-				onTaskUpdated(task.mDownloader.taskManager, task);
-			}
-		});
+		if (task.mProgressPending) return;
+		task.mProgressPending = true;
+        task.mTaskUpdatePending = true;
+		task.postToMain(task.mProgressRunnable);
 	}
 	
 	static void onPaused(final DownloadTask task) {
@@ -445,6 +412,21 @@ final class EventDispatcher {
 		}
 	}
 	
+	static void dispatchTaskUpdated(TaskManager manager, DownloadTask task) {
+		if (manager == null || task == null) return;
+		final List<TaskListObserver> observers = manager.snapshotObservers();
+		if (observers.isEmpty()) return;
+		
+		for (TaskListObserver observer : observers) {
+			if (!manager.hasObserver(observer)) continue;
+			try {
+				observer.onTaskUpdated(task.mId, task);
+			} catch (Throwable e) {
+				log(e);
+			}
+		}
+	}
+	
 	private static void dispatchStart(List<SimpleDownloader.Listener> l, DownloadTask t) {
 		if (l == null) return;
 		for (SimpleDownloader.Listener x : l) {
@@ -467,11 +449,22 @@ final class EventDispatcher {
 		}
 	}
 	
-	private static void dispatchProgress(List<SimpleDownloader.Listener> l, int progress, long speed, long eta, DownloadTask t) {
-		if (l == null) return;
-		for (SimpleDownloader.Listener x : l) {
+	static void dispatchProgress(int progress, long speed, long eta, DownloadTask task) {
+		if (task == null) return;
+		final List<DownloadTask.Listener> tl = taskSnapshot(task);
+		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
+		
+		for (DownloadTask.Listener l : safe(tl)) {
 			try {
-				x.onProgress(progress, speed, eta, t);
+				l.onProgress(progress, speed, eta, task);
+			} catch (Throwable e) {
+				log(e);
+			}
+		}
+		
+		for (SimpleDownloader.Listener l : safe(dl)) {
+			try {
+				l.onProgress(progress, speed, eta, task);
 			} catch (Throwable e) {
 				log(e);
 			}
