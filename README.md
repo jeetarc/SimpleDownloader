@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="assets/SimpleDownloader-logo-rounded-512x512px.png" style="width: 20%;" />
-</p>
-
 # SimpleDownloader
 
 [![JitPack](https://jitpack.io/v/jeetarc/SimpleDownloader.svg)](https://jitpack.io/#jeetarc/SimpleDownloader)
