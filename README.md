@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/SimpleDownloader-logo-rounded-512x512px.png" style="width: 20%;" />
+  <img src="assets/SimpleDownloader-logo-rounded-512x512px.png" style="width: 30%;" />
 </p>
 
 # SimpleDownloader
@@ -8,6 +8,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/jeetarc/SimpleDownloader?include_prereleases)](https://github.com/jeetarc/SimpleDownloader/releases)
 [![Android API](https://img.shields.io/badge/Android-API%2021%2B-3DDC84?logo=android&logoColor=white)](https://github.com/jeetarc/SimpleDownloader/releases/download/1.0.2/SimpleDownloader-1.0.2.apk)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Reddit](https://img.shields.io/badge/Reddit-%20community-FF4500?logo=reddit&logoColor=white)](https://www.reddit.com/r/SimpleDownloader/)
 
 SimpleDownloader is an Android file downloader library. It handles the parts that usually make downloading difficult: queues, concurrent downloads, pause and resume, unstable networks, scoped storage, task persistence, foreground, notifications, progress updates, etc.
 
