@@ -90,6 +90,8 @@ public class DownloadTask {
 	volatile boolean mShutdownRequested = false;
 	volatile boolean mForceDownload = false;
 	volatile boolean mManualRetryPending = false;
+	volatile boolean mProgressPending = false;
+    volatile boolean mTaskUpdatePending = false; 
 	private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 	private volatile Future<?> mFuture;
 	volatile boolean mWorkerRunning = false;
@@ -438,13 +440,13 @@ public class DownloadTask {
 	public boolean canRetry() { return mStatus.isFailed(); }
 	public boolean isQueued() { return mStatus.isQueued(); }
 	public boolean isDownloading() { return mStatus.isDownloading(); }
-    public boolean isPaused() { return mStatus.isPaused(); }
+	public boolean isPaused() { return mStatus.isPaused(); }
 	public boolean isComplete() { return mStatus.isComplete(); }
 	public boolean isActive() { return mStatus.isActive(); }
 	public boolean isFailed() { return mStatus.isFailed(); }
 	public boolean isCancelled() { return mStatus.isCancelled(); }
 	public boolean isWaitingForNetwork() { return mStatus.isWaitingForNetwork(); }
-    public boolean isFinished() { return mStatus.isFinished(); }    
+	public boolean isFinished() { return mStatus.isFinished(); }    
 	public boolean isOccupiedSlot() { return mDownloader.slotManager.isOccupiedSlot(this); }
 	public boolean isDeleteOnRemoval() { return mDeleteOnRemoval; }
 	public boolean isLockedInQueue() { return mLockedInQueue; }
@@ -472,7 +474,7 @@ public class DownloadTask {
 		
 		if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.updateStatus(mId, newStatus, mBytesDownloaded, mProgress);
 		mDownloader.taskManager.sortTasks();
-		EventDispatcher.onTaskUpdated(mDownloader.taskManager, this);
+		EventDispatcher.onTaskUpdated(this);
 		EventDispatcher.onStatusFlow(this, newStatus, activeChanged, isNowActive);
 	}
 	
@@ -489,6 +491,24 @@ public class DownloadTask {
 	void postToMain(Runnable r) {
 		if (r != null) MAIN_HANDLER.post(r);
 	}
+	
+	final Runnable mProgressRunnable = new Runnable() {
+		@Override
+		public void run() {
+			mProgressPending = false;
+            mTaskUpdatePending = false;
+			EventDispatcher.dispatchProgress(mProgress, mSpeed, mEta, DownloadTask.this);
+			EventDispatcher.dispatchTaskUpdated(mDownloader.taskManager, DownloadTask.this);
+		}
+	};
+	
+	final Runnable mTaskUpdateRunnable = new Runnable() {
+		@Override
+		public void run() {
+            mTaskUpdatePending = false;
+			EventDispatcher.dispatchTaskUpdated(mDownloader.taskManager, DownloadTask.this);
+		}
+	};
 	
 	void setFuture(Future<?> future) {
 		mFuture = future;
