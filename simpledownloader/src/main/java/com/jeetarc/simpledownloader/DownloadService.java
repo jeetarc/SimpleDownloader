@@ -38,7 +38,6 @@ import java.util.concurrent.RejectedExecutionException;
 */
 public final class DownloadService extends Service {
 	static final String ACTION_ATTACH_LIFECYCLE = "com.jeetarc.simpledownloader.action.ATTACH_LIFECYCLE";
-	static final String ACTION_ATTACH_ACTIVE = "com.jeetarc.simpledownloader.action.ATTACH_ACTIVE";
 	static final String ACTION_ATTACH_RESUME = "com.jeetarc.simpledownloader.action.ATTACH_RESUME";
 	static final String ACTION_PAUSE = "com.jeetarc.simpledownloader.action.PAUSE";
 	static final String ACTION_RESUME = "com.jeetarc.simpledownloader.action.RESUME";
@@ -66,16 +65,6 @@ public final class DownloadService extends Service {
 		
 		if (service != null) service.handleLifecycleStarted(task);
 		else startServiceForTask(task, ACTION_ATTACH_LIFECYCLE);
-	}
-	
-	static void onTaskBecameActive(DownloadTask task) {
-		if (task == null || task.mContext == null || !task.mDownloader.areNotificationsEnabled()) return;
-		if (!task.isActive() || task.mStatus == Status.QUEUED) return;
-		task.mNotificationDismissed = false;
-		DownloadService service = runningService;
-		
-		if (service != null) service.handleBecameActive(task);
-		else startServiceForTask(task, ACTION_ATTACH_ACTIVE);
 	}
 	
 	static void onTaskQueued(DownloadTask task) {
@@ -270,12 +259,6 @@ public final class DownloadService extends Service {
 			return START_NOT_STICKY;
 		}
 		
-		if (ACTION_ATTACH_ACTIVE.equals(action)) {
-			DownloadTask task = findTask(taskId);
-			if (task != null) handleBecameActive(task);
-			return START_NOT_STICKY;
-		}
-		
 		if (ACTION_ATTACH_RESUME.equals(action)) {
 			DownloadTask task = findTask(taskId);
 			if (task != null) handleResumed(task);
@@ -285,7 +268,6 @@ public final class DownloadService extends Service {
 		return START_NOT_STICKY;
 	}
 	
-	@Override
 	public void onTimeout(int startId, int fgsType) {
 		handleForegroundTimeout(startId);
 	}
@@ -389,13 +371,6 @@ public final class DownloadService extends Service {
 		postProgressNotification(task, "Download starting...", null, task.mProgress, true, false, true);
 	}
 	
-	private void handleBecameActive(DownloadTask task) {
-		if (!isNotificationAllowed(task)) return;
-		if (task.mStatus == Status.QUEUED || !task.isActive()) return;
-		task.mNotificationDismissed = false;
-		ensureActiveTaskInGroup(task);
-	}
-	
 	private void handleQueued(DownloadTask task) {
 		if (task == null) return;
 		if (!groupTasks.contains(task.mId) && !foregroundTasks.contains(task.mId)) return;
@@ -434,7 +409,6 @@ public final class DownloadService extends Service {
 	private void handleWaitingForNetwork(DownloadTask task) {
 		if (task == null || !isNotificationAllowed(task)) return;
 		if (task.mNotificationDismissed) return;
-		
 		if (!groupTasks.contains(task.mId)) addToGroup(task);
 		String text = "Waiting for network • " + formatBytesRatio(task.mBytesDownloaded, task.mTotalBytes);
 		postProgressNotification(task, text, null, task.mProgress, false, false, true);
