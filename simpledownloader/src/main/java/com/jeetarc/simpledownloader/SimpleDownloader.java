@@ -77,7 +77,6 @@ public class SimpleDownloader {
 	final HttpEngine httpEngine;
 	final TaskDatabase taskDatabase;
 	final ThumbLoader thumbLoader;
-	private final CopyOnWriteArrayList<Listener> mDefaultListeners = new CopyOnWriteArrayList<Listener>();
 	
 	/** Receives updates from every task owned by this downloader. */
 	public interface Listener {
@@ -96,7 +95,8 @@ public class SimpleDownloader {
 		default void onActiveChanged(boolean isActive, DownloadTask task) {}
 		default void onLifecycleChanged(int lifecycle, DownloadTask task) {}
 	}
-	
+    
+	final CopyOnWriteArrayList<Listener> mDefaultListeners = new CopyOnWriteArrayList<Listener>();
 	volatile DownloadNotification mNotification = new DownloadNotification();
 	private volatile int mMaxConcurrent = 0;
 	private volatile int mEffectiveMaxConcurrent = AUTO_MIN_SLOT;
@@ -686,10 +686,6 @@ public class SimpleDownloader {
 			mHoldSlotOnPause = enable;
 		}
 		return this;
-	}
-	
-	List<Listener> getListenersSnapshot() {
-		return new ArrayList<Listener>(mDefaultListeners);
 	}
 	
 	public SimpleDownloader addListener(Listener listener) {
