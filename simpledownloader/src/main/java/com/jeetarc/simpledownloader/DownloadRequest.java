@@ -69,8 +69,7 @@ public final class DownloadRequest {
 		this.mimeTypeMode = resolved.mimeTypeMode;
 		this.fileUrl = builder.fileUrl;
 		this.userAgent = builder.userAgent;
-		this.headers = builder.headers.isEmpty() ? Collections.<String, String>emptyMap()
-		: Collections.unmodifiableMap(new HashMap<String, String>(builder.headers));
+		this.headers = builder.headers.isEmpty() ? Collections.<String, String>emptyMap() : Collections.unmodifiableMap(new HashMap<String, String>(builder.headers));
 		this.cookies = builder.cookies;
 		this.checksumAlgorithm = builder.checksumAlgorithm;
 		this.checksumValue = builder.checksumValue;
@@ -107,12 +106,12 @@ public final class DownloadRequest {
 		String outputFolderPath;
 		String overwritePath;
 		Uri mediaStoreUri;
-		String subFolderPath;
-		String fileName;
-		String mimeType;
+		String subFolderPath = "";
+		String fileName = "";
+		String mimeType = "";
 		FileName fileNameMode;
 		MimeType mimeTypeMode;
-		String fileUrl;
+		String fileUrl = "";
 		String userAgent = System.getProperty("http.agent");
 		final Map<String, String> headers = new HashMap<String, String>();
 		String cookies;
@@ -201,7 +200,7 @@ public final class DownloadRequest {
 		}
 		
 		public Builder setSubFolder(String subFolder) {
-			subFolderPath = subFolder == null ? null : subFolder.trim();
+			subFolderPath = subFolder == null ? "" : subFolder.trim();
 			hasSubFolder = true;
 			return this;
 		}
@@ -412,16 +411,16 @@ public final class DownloadRequest {
 	public static DownloadRequest from(String folderPath, FileName fileName, String fileUrl) {
 		return builder().setFileUrl(fileUrl).setOutput(folderPath, fileName).build();
 	}
-    
-    /** Creates a new request using a file URI and writes directly to it. */
-    public static DownloadRequest fromOverwrite(Uri fileUri, String fileUrl) {
-        return builder().overwrite(fileUri).setFileUrl(fileUrl).build();
-    }
-    
-    /** Creates a new request using a file path and writes directly to it. */
-    public static DownloadRequest fromOverwrite(String filePath, String fileUrl) {
-        return builder().overwrite(filePath).setFileUrl(fileUrl).build();
-    }
+	
+	/** Creates a new request using a file URI and writes directly to it. */
+	public static DownloadRequest fromOverwrite(Uri fileUri, String fileUrl) {
+		return builder().overwrite(fileUri).setFileUrl(fileUrl).build();
+	}
+	
+	/** Creates a new request using a file path and writes directly to it. */
+	public static DownloadRequest fromOverwrite(String filePath, String fileUrl) {
+		return builder().overwrite(filePath).setFileUrl(fileUrl).build();
+	}
 	
 	/** Creates a new request builder. */
 	public static Builder builder() {
