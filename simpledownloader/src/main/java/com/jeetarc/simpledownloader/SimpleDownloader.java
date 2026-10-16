@@ -116,7 +116,7 @@ public class SimpleDownloader {
 	private volatile Comparator<DownloadTask> mTaskComparator;
 	volatile boolean mShutdown;
 	private volatile int mBufferSize = 16 * 1024;
-	private volatile String mSubFolderPath;
+	private volatile String mSubFolderPath = "";
 	private volatile String mUserAgent = System.getProperty("http.agent");
 	private volatile Map<String,String> mHeaders = Collections.emptyMap();
 	private volatile String mCookies;
@@ -844,7 +844,7 @@ public class SimpleDownloader {
 	public String getCookies() { return mCookies; }
 	public boolean isWifiOnlyDefault() { return mWifiOnlyDefault; }
 	public boolean isDeleteOnRemovalDefault() { return mDeleteOnRemovalDefault; }
-	public SimpleDownloader setSubFolder(String value) { synchronized (mLock) { ensureNotShutdownLocked(); mSubFolderPath = value == null ? null : value.trim(); } return this; }
+	public SimpleDownloader setSubFolder(String value) { synchronized (mLock) { ensureNotShutdownLocked(); mSubFolderPath = value == null ? "" : value.trim(); } return this; }
 	public SimpleDownloader setHeaders(Map<String,String> headers) { synchronized (mLock) { ensureNotShutdownLocked(); mHeaders = headers == null || headers.isEmpty() ? Collections.<String,String>emptyMap() : Collections.unmodifiableMap(new HashMap<String,String>(headers)); } return this; }
 	
 	public SimpleDownloader addHeader(String key, String value) {
@@ -995,13 +995,6 @@ public class SimpleDownloader {
 	
 	static AutoConcurrencyController autoConcurrencyController() {
 		return AUTO_CONCURRENCY_CONTROLLER;
-	}
-	
-	static boolean isLowRamDevice() {
-		Context context = appContextOrNull();
-		if (context == null) return false;
-		ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-		return am != null && am.isLowRamDevice();
 	}
 	
 	/** Stops this downloader instance and releases its runtime resources. */
