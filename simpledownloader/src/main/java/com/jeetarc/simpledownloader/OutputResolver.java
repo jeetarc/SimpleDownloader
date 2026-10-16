@@ -146,8 +146,9 @@ final class OutputResolver {
 	// SAF / DOCUMENT FILE OUTPUT //  
 	
 	private static OutputState resolveDocFileOutput(DownloadTask task) throws IOException {  
-		DocumentFile folder = DocumentFile.fromTreeUri(task.mContext, task.mTreeUri);  
-		folder = resolveDocFileSubFolder(folder, task.mSubFolderPath);  
+		DocumentFile folder = DocumentFile.fromTreeUri(task.mContext, task.mTreeUri);
+		if (folder == null || !folder.exists()) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Output folder cannot be resolved.");
+		folder = resolveDocFileSubFolder(folder, task.mSubFolderPath);
 		String validName = sanitizeFileName(task.mFileName);  
 		if (validName == null) validName = "download_" + System.currentTimeMillis();  
 		
@@ -157,7 +158,7 @@ final class OutputResolver {
 		DocumentFile file;  
 		synchronized (lock) {  
 			file = folder.createFile(task.mMimeType, validName);  
-		}  
+		}
 		
 		if (file == null || file.getUri() == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Failed to create output file.");  
 		Uri fileUri = file.getUri();
@@ -171,12 +172,9 @@ final class OutputResolver {
 		return new OutputState(file, null, fileUri, 0);  
 	}  
 	
-	private static DocumentFile resolveDocFileSubFolder(DocumentFile baseFolder, String subFolder) throws IOException {  
-		if (baseFolder == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Output folder cannot be resolved.");  
-		if (!baseFolder.exists() || !baseFolder.isDirectory()) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Invalid output folder.");  
-		
-		String normalized = normalizeSubFolder(subFolder);  
-		if (subFolder != null && !subFolder.trim().isEmpty() && normalized == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Invalid subfolder path.");  
+	private static DocumentFile resolveDocFileSubFolder(DocumentFile baseFolder, String subFolder) throws IOException {
+		if (subFolder.trim().isEmpty()) return baseFolder;
+		String normalized = normalizeSubFolder(subFolder);
 		if (normalized == null) return baseFolder;  
 		
 		DocumentFile folder = baseFolder;  
@@ -202,9 +200,11 @@ final class OutputResolver {
 	// FILE PATH OUTPUT //  
 	
 	private static OutputState resolvePathOutput(DownloadTask task) throws IOException {  
-		File folder = resolveFileSubFolder(new File(task.mOutputFolderPath), task.mSubFolderPath);  
-		if (!folder.canWrite()) throw new DownloadException(DownloadException.Type.STORAGE_PERMISSION_DENIED, "No write permission for output directory.");  
-		
+		File folder = new File(task.mOutputFolderPath);
+        if (folder == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID,"Output directory cannot be resolved.");
+		if (!folder.canWrite()) throw new DownloadException(DownloadException.Type.STORAGE_PERMISSION_DENIED, "No write permission for output directory.");
+		folder = resolveFileSubFolder(folder, task.mSubFolderPath);
+        
 		String validName = sanitizeFileName(task.mFileName);  
 		if (validName == null) validName = "download_" + System.currentTimeMillis();  
 		File file = createUniqueFile(folder, validName);  
@@ -242,13 +242,10 @@ final class OutputResolver {
 		throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Cannot create unique output file after 999 attempts.");  
 	}  
 	
-	private static File resolveFileSubFolder(File baseFolder, String subFolder) throws IOException {  
-		if (baseFolder == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID,"Output directory cannot be resolved.");  
-		
+	private static File resolveFileSubFolder(File baseFolder, String subFolder) throws IOException {
+		if (subFolder.trim().isEmpty()) return baseFolder;
 		String normalized = normalizeSubFolder(subFolder);  
-		if (subFolder != null && !subFolder.trim().isEmpty() && normalized == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Invalid subfolder path.");  
-		
-		if (normalized == null) return baseFolder;  
+		if (normalized == null) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "Invalid subfolder path.");
 		File folder = new File(baseFolder, normalized);  
 		
 		if (!folder.exists() && !folder.mkdirs()) throw new DownloadException(DownloadException.Type.STORAGE_PERMISSION_DENIED, "Cannot create subfolder.");  
@@ -282,8 +279,7 @@ final class OutputResolver {
 	// MEDIA STORE OUTPUT //  
 	
 	private static OutputState resolveMediaStoreOutput(DownloadTask task, boolean allowCreate) throws IOException {  
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "MediaStore output requires Android 10 (API 29) or newer.");  
-		
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) throw new DownloadException(DownloadException.Type.OUTPUT_INVALID, "MediaStore output requires Android 10 (API 29) or newer.");
 		ContentResolver resolver = task.mContext.getContentResolver();
 		
 		if (task.mOutputUri != null) {  
