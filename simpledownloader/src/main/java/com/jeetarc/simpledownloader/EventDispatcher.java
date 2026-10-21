@@ -71,6 +71,41 @@ final class EventDispatcher {
 		task.postToMain(task.mTaskUpdateRunnable);
 	}
 	
+    static void onQueued(final DownloadTask task) {
+		final int pos = task.mDownloader.slotManager.getQueuePosition(task);
+		final List<DownloadTask.Listener> tl = taskSnapshot(task);
+		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
+		
+		if (!noListeners(tl, dl)) {
+			task.postToMain(new Runnable() {
+				@Override
+				public void run() {
+					for (DownloadTask.Listener l : safe(tl)) {
+						try {
+							l.onQueued(pos, task);
+						} catch (Throwable e) {
+							log(e);
+						}
+					}
+					
+					for (SimpleDownloader.Listener l : safe(dl)) {
+						try {
+							l.onQueued(pos, task);
+						} catch (Throwable e) {
+							log(e);
+						}
+					}
+				}
+			});
+		}
+		
+		if (task.mLifecycleStarted) {
+			onLifecycleChanged(task, DownloadTask.LIFECYCLE_ENDED);
+			task.mLifecycleStarted = false;
+			task.mLifecycleEnded = false;
+		}
+	}
+    
 	static void onStart(final DownloadTask task) {
 		final List<DownloadTask.Listener> tl = taskSnapshot(task);
 		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
@@ -90,35 +125,6 @@ final class EventDispatcher {
 				for (SimpleDownloader.Listener l : safe(dl)) {
 					try {
 						l.onStart(task);
-					} catch (Throwable e) {
-						log(e);
-					}
-				}
-			}
-		});
-	}
-	
-	static void onQueued(final DownloadTask task) {
-		DownloadService.onTaskQueued(task);
-		final int pos = task.mDownloader.slotManager.getQueuePosition(task);
-		final List<DownloadTask.Listener> tl = taskSnapshot(task);
-		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
-		if (noListeners(tl, dl)) return;
-		
-		task.postToMain(new Runnable() {
-			@Override
-			public void run() {
-				for (DownloadTask.Listener l : safe(tl)) {
-					try {
-						l.onQueued(pos, task);
-					} catch (Throwable e) {
-						log(e);
-					}
-				}
-				
-				for (SimpleDownloader.Listener l : safe(dl)) {
-					try {
-						l.onQueued(pos, task);
 					} catch (Throwable e) {
 						log(e);
 					}
@@ -192,131 +198,129 @@ final class EventDispatcher {
 	}
 	
 	static void onCancelled(final DownloadTask task) {
-		DownloadService.onTaskCancelled(task);
-		onLifecycleChanged(task, DownloadTask.LIFECYCLE_ENDED);
-		
+		task.cancelThumbnailRequest();
 		final List<DownloadTask.Listener> tl = taskSnapshot(task);
 		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
-		if (noListeners(tl, dl)) return;
 		
-		task.postToMain(new Runnable() {
-			@Override
-			public void run() {
-				for (DownloadTask.Listener l : safe(tl)) {
-					try {
-						l.onCancelled(task);
-					} catch (Throwable e) {
-						log(e);
+		if (!noListeners(tl, dl)) {
+			task.postToMain(new Runnable() {
+				@Override
+				public void run() {
+					for (DownloadTask.Listener l : safe(tl)) {
+						try {
+							l.onCancelled(task);
+						} catch (Throwable e) {
+							log(e);
+						}
+					}
+					
+					for (SimpleDownloader.Listener l : safe(dl)) {
+						try {
+							l.onCancelled(task);
+						} catch (Throwable e) {
+							log(e);
+						}
 					}
 				}
-				
-				for (SimpleDownloader.Listener l : safe(dl)) {
-					try {
-						l.onCancelled(task);
-					} catch (Throwable e) {
-						log(e);
-					}
-				}
-				
-				task.mListeners.clear();
-			}
-		});
+			});
+		}
+		
+		onLifecycleChanged(task, DownloadTask.LIFECYCLE_ENDED);
 	}
 	
 	static void onComplete(final DownloadTask task) {
 		DownloadService.onTaskComplete(task);
-		onLifecycleChanged(task, DownloadTask.LIFECYCLE_ENDED);
 		
 		final List<DownloadTask.Listener> tl = taskSnapshot(task);
 		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
-		if (noListeners(tl, dl)) return;
 		
-		task.postToMain(new Runnable() {
-			@Override
-			public void run() {
-				for (DownloadTask.Listener l : safe(tl)) {
-					try {
-						l.onComplete(task.mOutputUri, task);
-					} catch (Throwable e) {
-						log(e);
+		if (!noListeners(tl, dl)) {
+			task.postToMain(new Runnable() {
+				@Override
+				public void run() {
+					for (DownloadTask.Listener l : safe(tl)) {
+						try {
+							l.onComplete(task.mOutputUri, task);
+						} catch (Throwable e) {
+							log(e);
+						}
+					}
+					
+					for (SimpleDownloader.Listener l : safe(dl)) {
+						try {
+							l.onComplete(task.mOutputUri, task);
+						} catch (Throwable e) {
+							log(e);
+						}
 					}
 				}
-				
-				for (SimpleDownloader.Listener l : safe(dl)) {
-					try {
-						l.onComplete(task.mOutputUri, task);
-					} catch (Throwable e) {
-						log(e);
-					}
-				}
-				
-				task.mListeners.clear();
-			}
-		});
+			});
+		}
+		
+		onLifecycleChanged(task, DownloadTask.LIFECYCLE_ENDED);
 	}
 	
 	static void onError(final DownloadTask task, final Exception error) {
 		DownloadService.onTaskError(task, error);
-		onLifecycleChanged(task, DownloadTask.LIFECYCLE_ENDED);
 		
 		final List<DownloadTask.Listener> tl = taskSnapshot(task);
 		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
-		if (noListeners(tl, dl)) return;
 		
-		task.postToMain(new Runnable() {
-			@Override
-			public void run() {
-				for (DownloadTask.Listener l : safe(tl)) {
-					try {
-						l.onError(task.mOutputUri, error, task);
-					} catch (Throwable e) {
-						log(e);
+		if (!noListeners(tl, dl)) {
+			task.postToMain(new Runnable() {
+				@Override
+				public void run() {
+					for (DownloadTask.Listener l : safe(tl)) {
+						try {
+							l.onError(task.mOutputUri, error, task);
+						} catch (Throwable e) {
+							log(e);
+						}
+					}
+					
+					for (SimpleDownloader.Listener l : safe(dl)) {
+						try {
+							l.onError(task.mOutputUri, error, task);
+						} catch (Throwable e) {
+							log(e);
+						}
 					}
 				}
-				
-				for (SimpleDownloader.Listener l : safe(dl)) {
-					try {
-						l.onError(task.mOutputUri, error, task);
-					} catch (Throwable e) {
-						log(e);
-					}
-				}
-				
-				// Not clearing listeners here because of retry.
-			}
-		});
+			});
+		}
+		
+		onLifecycleChanged(task, DownloadTask.LIFECYCLE_ENDED);
 	}
 	
 	static void onRemoved(final DownloadTask task, final boolean deleted) {
-		DownloadService.onTaskRemoved(task);
-		onLifecycleChanged(task, DownloadTask.LIFECYCLE_ENDED);
-		
+		task.cancelThumbnailRequest();
 		final List<DownloadTask.Listener> tl = taskSnapshot(task);
 		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
-		if (noListeners(tl, dl)) return;
 		
-		task.postToMain(new Runnable() {
-			@Override
-			public void run() {
-				for (DownloadTask.Listener l : safe(tl)) {
-					try {
-						l.onRemoved(deleted, task);
-					} catch (Throwable e) {
-						log(e);
+		if (!noListeners(tl, dl)) {
+			task.postToMain(new Runnable() {
+				@Override
+				public void run() {
+					for (DownloadTask.Listener l : safe(tl)) {
+						try {
+							l.onRemoved(deleted, task);
+						} catch (Throwable e) {
+							log(e);
+						}
+					}
+					
+					for (SimpleDownloader.Listener l : safe(dl)) {
+						try {
+							l.onRemoved(deleted, task);
+						} catch (Throwable e) {
+							log(e);
+						}
 					}
 				}
-				
-				for (SimpleDownloader.Listener l : safe(dl)) {
-					try {
-						l.onRemoved(deleted, task);
-					} catch (Throwable e) {
-						log(e);
-					}
-				}
-				
-				task.mListeners.clear();
-			}
-		});
+			});
+		}
+		
+		onLifecycleChanged(task, DownloadTask.LIFECYCLE_ENDED);
 	}
 	
 	static void onRetry(final DownloadTask task, final int attempt) {
@@ -406,10 +410,11 @@ final class EventDispatcher {
 	
 	static void onLifecycleChanged(final DownloadTask task, final int lifecycle) {
 		if (lifecycle == DownloadTask.LIFECYCLE_STARTED) {
-			if (task.mLifecycleStarted || task.mLifecycleEnded) return;
+			if (task.mLifecycleStarted) return;
 			task.mLifecycleStarted = true;
 			task.mNotificationDismissed = false;
 			DownloadService.onTaskLifecycleStarted(task);
+			
 		} else if (lifecycle == DownloadTask.LIFECYCLE_ENDED) {
 			if (task.mLifecycleEnded) return;
 			task.mLifecycleEnded = true;
@@ -438,24 +443,43 @@ final class EventDispatcher {
 						log(e);
 					}
 				}
+				
+				// Not clearing listeners for failed because of retry.
+				if (lifecycle == DownloadTask.LIFECYCLE_ENDED && !task.mStatus.isFailed()) task.mListeners.clear();
 			}
 		});
 	}
 	
 	static void onStatusFlow(final DownloadTask task, final Status status, final boolean activeChanged, final boolean active) {
 		if (active) onLifecycleChanged(task, DownloadTask.LIFECYCLE_STARTED);
-		
 		final List<DownloadTask.Listener> tl = taskSnapshot(task);
 		final List<SimpleDownloader.Listener> dl = downloaderSnapshot(task);
-		if (noListeners(tl, dl)) return;
 		
-		task.postToMain(new Runnable() {
-			@Override
-			public void run() {
-				if (activeChanged) {
+		if (!noListeners(tl, dl)) {
+			task.postToMain(new Runnable() {
+				@Override
+				public void run() {
+					if (activeChanged) {
+						for (DownloadTask.Listener l : safe(tl)) {
+							try {
+								l.onActiveChanged(active, task);
+							} catch (Throwable e) {
+								log(e);
+							}
+						}
+						
+						for (SimpleDownloader.Listener l : safe(dl)) {
+							try {
+								l.onActiveChanged(active, task);
+							} catch (Throwable e) {
+								log(e);
+							}
+						}
+					}
+					
 					for (DownloadTask.Listener l : safe(tl)) {
 						try {
-							l.onActiveChanged(active, task);
+							l.onStatusChanged(status, task);
 						} catch (Throwable e) {
 							log(e);
 						}
@@ -463,30 +487,14 @@ final class EventDispatcher {
 					
 					for (SimpleDownloader.Listener l : safe(dl)) {
 						try {
-							l.onActiveChanged(active, task);
+							l.onStatusChanged(status, task);
 						} catch (Throwable e) {
 							log(e);
 						}
 					}
 				}
-				
-				for (DownloadTask.Listener l : safe(tl)) {
-					try {
-						l.onStatusChanged(status, task);
-					} catch (Throwable e) {
-						log(e);
-					}
-				}
-				
-				for (SimpleDownloader.Listener l : safe(dl)) {
-					try {
-						l.onStatusChanged(status, task);
-					} catch (Throwable e) {
-						log(e);
-					}
-				}
-			}
-		});
+			});
+		}
 	}
 	
 	static void dispatchTaskUpdated(TaskManager manager, DownloadTask task) {
