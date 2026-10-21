@@ -142,15 +142,14 @@ final class DownloadWorker {
 	private void executeStopRequest(long downloadedTotal) throws Exception {
 		if (stopHandled) return;
 		stopHandled = true;
+		boolean shouldSync = true;
+		
 		SimpleDownloader downloader = task.mDownloader;
 		SlotManager slotManager = downloader.slotManager;
 		NetworkManager networkManager = downloader.networkManager;
 		TaskManager taskManager = downloader.taskManager;
 		TaskDatabase taskDatabase = downloader.taskDatabase;
-		boolean shouldSync = true;
 		task.mBytesDownloaded = downloadedTotal;
-		task.mSpeed = 0;
-		task.mEta = -1;
 		speedHelper.reset(downloadedTotal);
 		etaHelper.reset();
 		
@@ -160,12 +159,14 @@ final class DownloadWorker {
 		} else if (task.mRemoveRequested) {
 			boolean deleted = false;
 			if (task.mDeleteOnRemoval) deleted = OutputResolver.deleteOutput(task);
+			
 			synchronized (downloader.mLock) {
 				slotManager.removeQueuedTask(task);
 				networkManager.getWaitingForPreferredNetwork().remove(task);
-				synchronized (SimpleDownloader.GLOBAL_LOCK) {
+				synchronized (DownloaderRegistry.LOCK) {
 					taskManager.removeTaskCompletelyLocked(task);
 				}
+				
 				taskManager.clearAutoSpeedLocked(task);
 				if (taskDatabase != null) taskDatabase.removeTask(task.mId);
 			}
@@ -300,7 +301,7 @@ final class DownloadWorker {
 				
 				if (now >= nextOutputCheckTime) {
 					nextOutputCheckTime = now + nextOutputCheckInterval();
-                    requestOutputValidation();
+					requestOutputValidation();
 				}
 				
 				if (outputInvalid) {
@@ -480,7 +481,7 @@ final class DownloadWorker {
 		if (!outputCheckRunning.compareAndSet(false, true)) return;
 		final int generation = outputValidationGen;
 		
-		SimpleDownloader.OUTPUT_VALIDATION_EXECUTOR.execute(new Runnable() {
+		DownloaderRegistry.OUTPUT_VALIDATION_EXECUTOR.execute(new Runnable() {
 			@Override
 			public void run() {
 				try {
@@ -500,7 +501,7 @@ final class DownloadWorker {
 	private void recordAutoSpeedSample(long speed) {
 		synchronized (task.mDownloader.mLock) {
 			task.mDownloader.taskManager.updateAutoSpeedLocked(task, speed);
-			SimpleDownloader.autoConcurrencyController().recordSpeedSampleLocked();
+			DownloaderRegistry.INSTANCE.autoConcurrencyController().recordSpeedSampleLocked();
 		}
 	}
 	
