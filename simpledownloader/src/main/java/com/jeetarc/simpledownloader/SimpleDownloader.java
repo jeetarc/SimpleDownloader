@@ -6,7 +6,6 @@ package com.jeetarc.simpledownloader;
 * This source code is part of SimpleDownloader.
 */
 
-import android.app.ActivityManager;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Looper;
@@ -20,23 +19,18 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import okhttp3.OkHttpClient;
 
 
 /**
 * Main entry point for starting, restoring, and managing downloads.
 *
-* <p>Each instance is independent. Runtime task state, observers, listenerteners,
-* session/slot state, network state and adaptive mode belong to the instance.
-* The task database is shared by all instances.</p>
+* <p>Each instance owns its tasks, listeners, queue, and network state. The
+* DownloaderRegistry coordinates cross-instance rules, global slot accounting,
+* adaptive concurrency, and the reference-counted shared database.</p>
 */
 public class SimpleDownloader {
 	public static final String VERSION = "1.0.2";
@@ -51,21 +45,7 @@ public class SimpleDownloader {
 	public static final int NETWORK_TYPE_USB = NetworkManager.NETWORK_TYPE_USB;
 	public static final int NETWORK_TYPE_ROAMING = NetworkManager.NETWORK_TYPE_ROAMING;
 	
-	static final int AUTO_MIN_SLOT = 1;
-	static final int AUTO_MAX_SLOT = 10;
-	
-	static final Object GLOBAL_LOCK = new Object();
 	static final String DEFAULT_OWNER_ID = "default_owner";
-	private static final Set<SimpleDownloader> INSTANCES = new HashSet<SimpleDownloader>();
-	private static final AtomicLong NEXT_TASK_ID = new AtomicLong(System.currentTimeMillis());
-	private static final ExecutorService ADAPTIVE_DISPATCH_EXECUTOR = Executors.newSingleThreadExecutor();
-	static final ExecutorService OUTPUT_VALIDATION_EXECUTOR = Executors.newCachedThreadPool();
-	private static final AtomicInteger GLOBAL_MANUAL_OCCUPIED = new AtomicInteger();
-	private static final AtomicInteger GLOBAL_AUTO_OCCUPIED = new AtomicInteger();
-	private static final AutoConcurrencyController AUTO_CONCURRENCY_CONTROLLER = new AutoConcurrencyController();
-	static TaskDatabase SHARED_DATABASE;
-	private static int DATABASE_USERS;
-	private static volatile SimpleDownloader sDefault;
 	public static volatile boolean loggingEnabled = false;
 	
 	final Object mLock = new Object();
@@ -95,11 +75,11 @@ public class SimpleDownloader {
 		default void onActiveChanged(boolean isActive, DownloadTask task) {}
 		default void onLifecycleChanged(int lifecycle, DownloadTask task) {}
 	}
-    
+	
 	final CopyOnWriteArrayList<Listener> mDefaultListeners = new CopyOnWriteArrayList<Listener>();
 	volatile DownloadNotification mNotification = new DownloadNotification();
 	private volatile int mMaxConcurrent = 0;
-	private volatile int mEffectiveMaxConcurrent = AUTO_MIN_SLOT;
+	private volatile int mEffectiveMaxConcurrent = DownloaderRegistry.AUTO_MIN_SLOT;
 	volatile boolean mDownloadOnSlotFree = true;
 	volatile boolean mHoldSlotOnPause = false;
 	volatile boolean mEnableHistory = false;
@@ -122,7 +102,6 @@ public class SimpleDownloader {
 	private volatile String mCookies;
 	private volatile boolean mWifiOnlyDefault;
 	private volatile boolean mDeleteOnRemovalDefault;
-	private static volatile int sGlobalConcurrent = 0;
 	
 	private SimpleDownloader(Context context, Config config) {
 		if (context == null) throw new IllegalArgumentException("Context cannot be null.");
@@ -130,20 +109,31 @@ public class SimpleDownloader {
 		mOwnerId = normalizeOwnerId(config.ownerId);
 		mAutoRestore = config.autoRestore;
 		mTaskComparator = config.taskComparator;
-		mNotification = new DownloadNotification();
+		mNotification = config.notification;
+		mMaxConcurrent = config.maxConcurrent;
+		mEnableHistory = config.historyEnabled;
+		mNotificationsEnabled = config.notificationsEnabled || config.foregroundEnabled;
+		mForegroundEnabled = config.foregroundEnabled;
+		mProgressInterval = config.progressInterval;
+		mConnectTimeout = config.connectTimeout;
+		mReadTimeout = config.readTimeout;
+		mBufferSize = config.bufferSize;
+		mRetryPolicy = config.retryPolicy;
+		mDownloadOnSlotFree = config.downloadOnSlotFree;
+		mHoldSlotOnPause = config.holdSlotOnPause;
+		mResumeOnNetworkGain = config.resumeOnNetworkGain;
 		
-		synchronized (GLOBAL_LOCK) {
-			taskDatabase = acquireDatabaseLocked(mContext);
+		synchronized (DownloaderRegistry.LOCK) {
+			taskDatabase = DownloaderRegistry.INSTANCE.acquireDatabaseLocked(mContext);
 			taskManager = new TaskManager(this);
 			slotManager = new SlotManager(this);
 			networkManager = new NetworkManager(this);
 			httpEngine = new HttpEngine();
 			thumbLoader = new ThumbLoader(mContext);
 			mShutdown = false;
-			INSTANCES.add(this);
-			if (DEFAULT_OWNER_ID.equals(mOwnerId) && sDefault == null) sDefault = this;
+			DownloaderRegistry.INSTANCE.registerLocked(this);
 			networkManager.register(mContext);
-			networkManager.setRetryOnNetworkGain(false);
+			networkManager.setRetryOnNetworkGain(mResumeOnNetworkGain);
 			
 			if (config.httpClient != null) httpEngine.setClient(config.httpClient);
 			taskManager.setSortingEnabled(config.sortingEnabled);
@@ -155,9 +145,8 @@ public class SimpleDownloader {
 	/** Returns the application's default-owner downloader. */
 	public static SimpleDownloader getInstance(Context context) {
 		if (context == null) throw new IllegalArgumentException("Context cannot be null.");
-		synchronized (GLOBAL_LOCK) {
-			if (sDefault != null && !sDefault.mShutdown) return sDefault;
-		}
+		SimpleDownloader current = DownloaderRegistry.INSTANCE.defaultDownloaderOrNull();
+		if (current != null && !current.mShutdown) return current;
 		return new Builder(context).build();
 	}
 	
@@ -322,31 +311,8 @@ public class SimpleDownloader {
 			if (restoreFiltered) restoreSelections++;
 			if (restoreSelections > 1) throw new IllegalStateException("Only one restore method can be configured: setAutoRestore(true), restoreTasks(), or restoreTasks(field, value).");
 			
-			Config config = new Config();
-			config.ownerId = ownerId;
-			config.httpClient = httpClient;
-			config.autoRestore = autoRestore;
-			config.restoreAll = restoreAll;
-			config.restoreFiltered = restoreFiltered;
-			config.restoreField = restoreField;
-			config.restoreValue = restoreValue;
-			config.sortingEnabled = sortingEnabled;
-			config.taskComparator = taskComparator;
-			
+			Config config = new Config(this);
 			SimpleDownloader downloader = new SimpleDownloader(context, config);
-			downloader.setMaxConcurrent(maxConcurrent);
-			downloader.enableHistory(historyEnabled);
-			downloader.enableNotifications(notificationsEnabled || foregroundEnabled);
-			downloader.enableForeground(foregroundEnabled);
-			downloader.setNotification(notification);
-			downloader.setProgressInterval(progressInterval);
-			downloader.setConnectTimeout(connectTimeout);
-			downloader.setReadTimeout(readTimeout);
-			downloader.setBufferSize(bufferSize);
-			downloader.setRetryPolicy(retryPolicy);
-			downloader.setDownloadOnSlotFree(downloadOnSlotFree);
-			downloader.setHoldSlotOnPause(holdSlotOnPause);
-			downloader.enableResumeOnNetworkGain(resumeOnNetworkGain);
 			
 			if (autoRestore) downloader.restoreTasksInternal(true, null, null);
 			else if (restoreAll) downloader.restoreTasksInternal(false, null, null);
@@ -357,16 +323,55 @@ public class SimpleDownloader {
 		}
 	}
 	
+	/** Immutable snapshot of every construction-time option. */
 	private static final class Config {
-		String ownerId;
-		OkHttpClient httpClient;
-		boolean autoRestore;
-		boolean restoreAll;
-		boolean restoreFiltered;
-		TaskField<?> restoreField;
-		Object restoreValue;
-		boolean sortingEnabled = true;
-		Comparator<DownloadTask> taskComparator;
+		final String ownerId;
+		final OkHttpClient httpClient;
+		final boolean autoRestore;
+		final boolean restoreAll;
+		final boolean restoreFiltered;
+		final TaskField<?> restoreField;
+		final Object restoreValue;
+		final boolean sortingEnabled;
+		final Comparator<DownloadTask> taskComparator;
+		final int maxConcurrent;
+		final boolean historyEnabled;
+		final boolean foregroundEnabled;
+		final boolean notificationsEnabled;
+		final DownloadNotification notification;
+		final long progressInterval;
+		final int connectTimeout;
+		final int readTimeout;
+		final int bufferSize;
+		final RetryPolicy retryPolicy;
+		final boolean downloadOnSlotFree;
+		final boolean holdSlotOnPause;
+		final boolean resumeOnNetworkGain;
+		
+		Config(Builder builder) {
+			this.ownerId = builder.ownerId;
+			this.httpClient = builder.httpClient;
+			this.autoRestore = builder.autoRestore;
+			this.restoreAll = builder.restoreAll;
+			this.restoreFiltered = builder.restoreFiltered;
+			this.restoreField = builder.restoreField;
+			this.restoreValue = builder.restoreValue;
+			this.sortingEnabled = builder.sortingEnabled;
+			this.taskComparator = builder.taskComparator;
+			this.maxConcurrent = builder.maxConcurrent;
+			this.historyEnabled = builder.historyEnabled;
+			this.foregroundEnabled = builder.foregroundEnabled;
+			this.notificationsEnabled = builder.notificationsEnabled;
+			this.notification = builder.notification == null ? new DownloadNotification() : new DownloadNotification(builder.notification);
+			this.progressInterval = validateNonNegative(builder.progressInterval, "Progress interval");
+			this.connectTimeout = validateTimeout(builder.connectTimeout, "Connect timeout");
+			this.readTimeout = validateTimeout(builder.readTimeout, "Read timeout");
+			this.bufferSize = builder.bufferSize;
+			this.retryPolicy = builder.retryPolicy;
+			this.downloadOnSlotFree = builder.downloadOnSlotFree;
+			this.holdSlotOnPause = builder.holdSlotOnPause;
+			this.resumeOnNetworkGain = builder.resumeOnNetworkGain;
+		}
 	}
 	
 	private static String normalizeOwnerId(String ownerId) {
@@ -374,7 +379,6 @@ public class SimpleDownloader {
 		String value = ownerId.trim();
 		return value.length() == 0 ? DEFAULT_OWNER_ID : value;
 	}
-	
 	
 	private static int validateTimeout(int value, String name) {
 		if (value < 0) throw new IllegalArgumentException(name + " cannot be negative.");
@@ -386,89 +390,8 @@ public class SimpleDownloader {
 		return value;
 	}
 	
-	private static TaskDatabase acquireDatabaseLocked(Context context) {
-		if (SHARED_DATABASE == null) SHARED_DATABASE = new TaskDatabase(context);
-		DATABASE_USERS++;
-		return SHARED_DATABASE;
-	}
-	
-	private static void releaseDatabaseLocked(TaskDatabase database) {
-		if (database != SHARED_DATABASE) return;
-		DATABASE_USERS--;
-		if (DATABASE_USERS <= 0 && INSTANCES.isEmpty()) {
-			DATABASE_USERS = 0;
-			SHARED_DATABASE = null;
-			database.close();
-		}
-	}
-	
-	static ArrayList<SimpleDownloader> snapshotInstancesLockedForTaskRestore() {
-		return new ArrayList<SimpleDownloader>(INSTANCES);
-	}
-	
-	private static ArrayList<SimpleDownloader> snapshotInstancesLocked() {
-		return snapshotInstancesLockedForTaskRestore();
-	}
-	
-	private static void ensureUniqueTaskIdLocked(long id, SimpleDownloader requester) {
-		for (SimpleDownloader downloader : INSTANCES) {
-			if (downloader == null || downloader == requester || downloader.mShutdown) continue;
-			if (downloader.taskManager.hasTask(id)) throw new IllegalStateException("Task ID " + id + " is already used by another SimpleDownloader instance.");
-		}
-	}
-	
-	private static boolean hasBusyOverwriteTargetLocked(String overwriteKey, long ignoreTaskId, SimpleDownloader requester) {
-		if (overwriteKey == null || overwriteKey.isEmpty()) return false;
-		
-		for (SimpleDownloader downloader : INSTANCES) {
-			for (DownloadTask task : downloader.taskManager.snapshot()) {
-				if (task == null) continue;
-				if (task.mId == ignoreTaskId && downloader == requester) continue;
-				if (task.isFinished()) continue;
-				if (overwriteKey.equals(task.getOverwriteKey())) return true;
-			}
-		}
-		return false;
-	}
-	
-	static SimpleDownloader findTaskOwner(long id) {
-		synchronized (GLOBAL_LOCK) {
-			SimpleDownloader found = null;
-			
-			for (SimpleDownloader downloader : INSTANCES) {
-				if (downloader == null || downloader.mShutdown) continue;
-				if (downloader.taskManager.getTask(id) == null) continue;
-				if (found != null) return null;
-				found = downloader;
-			}
-			
-			return found;
-		}
-	}
-	
-	static DownloadTask findTaskAcrossInstances(long id) {
-		SimpleDownloader owner = findTaskOwner(id);
-		return owner == null ? null : owner.taskManager.getTask(id);
-	}
-	
-	static Context appContextOrNull() {
-		synchronized (GLOBAL_LOCK) {
-			if (sDefault != null && !sDefault.mShutdown) return sDefault.mContext;
-			for (SimpleDownloader downloader : INSTANCES) {
-				if (downloader != null && !downloader.mShutdown) return downloader.mContext;
-			}
-			return null;
-		}
-	}
-	
-	static SimpleDownloader defaultDownloaderOrNull() {
-		synchronized (GLOBAL_LOCK) {
-			return sDefault;
-		}
-	}
-	
 	long nextTaskId() {
-		return NEXT_TASK_ID.incrementAndGet();
+		return DownloaderRegistry.INSTANCE.nextTaskId();
 	}
 	
 	public String getOwnerId() {
@@ -573,6 +496,7 @@ public class SimpleDownloader {
 	
 	public SimpleDownloader setMaxConcurrent(int max) {
 		if (max < 0) throw new IllegalArgumentException("maxConcurrent cannot be negative. Use 0 for adaptive mode.");
+		
 		synchronized (mLock) {
 			ensureNotShutdownLocked();
 			boolean oldAuto = isAutoConcurrentLocked();
@@ -583,6 +507,7 @@ public class SimpleDownloader {
 			slotManager.ensureExecutorLocked();
 			slotManager.submitReadyHeldTasksLocked();
 		}
+		
 		return this;
 	}
 	
@@ -763,7 +688,7 @@ public class SimpleDownloader {
 				if (overwriteKey != null && !overwriteTargets.add(overwriteKey)) throw new IllegalStateException("Duplicate output target in download batch: " + overwriteKey);
 				DownloadTask oldTask = taskManager.getTask(id);
 				if (oldTask != null && oldTask.cannotBeReplaced()) throw new IllegalStateException("An unfinished task with ID " + id + " already exists and cannot be replaced.");
-				if (hasBusyOverwriteTargetLocked(overwriteKey, id, this)) throw new IllegalStateException("Output target is already used by another unfinished task: " + overwriteKey);
+				if (DownloaderRegistry.INSTANCE.hasBusyOverwriteTargetLocked(overwriteKey, id, this)) throw new IllegalStateException("Output target is already used by another unfinished task: " + overwriteKey);
 			}
 			
 			for (int i = 0; i < requests.size(); i++) {
@@ -791,13 +716,13 @@ public class SimpleDownloader {
 		String overwriteKey = resolved.getOverwriteKey();
 		DownloadTask task = resolved.createTask(this);
 		
-		synchronized (GLOBAL_LOCK) {
+		synchronized (DownloaderRegistry.LOCK) {
 			if (request.hasId && oldTask == null) {
-				ensureUniqueTaskIdLocked(resolved.id, this);
+				DownloaderRegistry.INSTANCE.ensureUniqueTaskIdLocked(resolved.id, this);
 				if (taskDatabase.hasUnfinishedTask(resolved.id)) throw new IllegalStateException("Task ID " + resolved.id + " is already used by a persisted unfinished task.");
 			}
 			
-			if (hasBusyOverwriteTargetLocked(overwriteKey, resolved.id, this)) throw new IllegalStateException("Output target is already used by another unfinished task: " + overwriteKey);
+			if (DownloaderRegistry.INSTANCE.hasBusyOverwriteTargetLocked(overwriteKey, resolved.id, this)) throw new IllegalStateException("Output target is already used by another unfinished task: " + overwriteKey);
 			
 			taskManager.putTaskLocked(task);
 			taskManager.addTaskLocked(task);
@@ -860,14 +785,12 @@ public class SimpleDownloader {
 	public SimpleDownloader setDeleteOnRemoval(boolean enable) { synchronized (mLock) { ensureNotShutdownLocked(); mDeleteOnRemovalDefault = enable; } return this; }
 	
 	public static void setGlobalConcurrent(int max) {
-		if (max < 0) throw new IllegalArgumentException("globalConcurrent cannot be negative. Use 0 to disable the global cap.");
-		sGlobalConcurrent = max;
-		onAdaptiveStateChangedLocked();
+		DownloaderRegistry.INSTANCE.setGlobalConcurrent(max);
 	}
 	
 	/** Shutdown for the default instance. */
 	public static void shutdownDefault() {
-		SimpleDownloader downloader = defaultDownloaderOrNull();
+		SimpleDownloader downloader = DownloaderRegistry.INSTANCE.defaultDownloaderOrNull();
 		if (downloader != null) downloader.shutdown();
 	}
 	
@@ -875,12 +798,10 @@ public class SimpleDownloader {
 		loggingEnabled = enable;
 	}
 	
-	static boolean hasGlobalCapacityLocked() {
-		return sGlobalConcurrent <= 0 || getGlobalManualOccupiedLocked() + getGlobalAutoOccupiedLocked() < sGlobalConcurrent;
-	}
-	
 	void validateNotificationConfigLocked() {
-		if (mForegroundEnabled && !mNotificationsEnabled) throw new IllegalStateException("Cannot run foreground without notifications.");
+		if (mForegroundEnabled && !mNotificationsEnabled) {
+			throw new IllegalStateException("Cannot run foreground without notifications.");
+		}
 	}
 	
 	boolean isAutoConcurrentLocked() {
@@ -889,112 +810,24 @@ public class SimpleDownloader {
 	
 	int getEffectiveMaxConcurrentLocked() {
 		if (mMaxConcurrent > 0) return Math.max(1, mMaxConcurrent);
-		return Math.max(AUTO_MIN_SLOT, Math.min(AUTO_MAX_SLOT, mEffectiveMaxConcurrent));
+		return Math.max(DownloaderRegistry.AUTO_MIN_SLOT, Math.min(DownloaderRegistry.AUTO_MAX_SLOT, mEffectiveMaxConcurrent));
 	}
 	
 	void setEffectiveMaxConcurrentLocked(int value) {
-		mEffectiveMaxConcurrent = Math.max(AUTO_MIN_SLOT, Math.min(AUTO_MAX_SLOT, value));
+		mEffectiveMaxConcurrent = Math.max(DownloaderRegistry.AUTO_MIN_SLOT, Math.min(DownloaderRegistry.AUTO_MAX_SLOT, value));
 	}
 	
 	private void configureEffectiveConcurrencyLocked() {
-		if (isAutoConcurrentLocked()) {
-			ensureAdaptiveInitializedLocked();
-		} else {
-			setEffectiveMaxConcurrentLocked(mMaxConcurrent);
-		}
+		if (isAutoConcurrentLocked()) ensureAdaptiveInitializedLocked();
+		else setEffectiveMaxConcurrentLocked(mMaxConcurrent);
 	}
 	
 	private void ensureAdaptiveInitializedLocked() {
-		AUTO_CONCURRENCY_CONTROLLER.ensureInitializedLocked();
+		DownloaderRegistry.INSTANCE.autoConcurrencyController().ensureInitializedLocked();
 	}
 	
 	void ensureNotShutdownLocked() {
 		if (mShutdown) throw new IllegalStateException("SimpleDownloader is shut down.");
-	}
-	
-	static int getGlobalAutoActiveCountLocked() {
-		int count = 0;
-		for (SimpleDownloader downloader : INSTANCES) {
-			if (downloader == null || downloader.mShutdown) continue;
-			if (!downloader.isAutoConcurrentLocked()) continue;
-			count += downloader.taskManager.getCachedActiveSpeedTaskCountLocked();
-		}
-		return count;
-	}
-	
-	static long getGlobalAutoSpeedLocked() {
-		long total = 0;
-		for (SimpleDownloader downloader : INSTANCES) {
-			if (downloader == null || downloader.mShutdown) continue;
-			if (!downloader.isAutoConcurrentLocked()) continue;
-			total += downloader.taskManager.getCachedTotalActiveSpeedLocked();
-		}
-		return total;
-	}
-	
-	static int getGlobalManualOccupiedLocked() {
-		return Math.max(0, GLOBAL_MANUAL_OCCUPIED.get());
-	}
-	
-	static int getGlobalAutoOccupiedLocked() {
-		return Math.max(0, GLOBAL_AUTO_OCCUPIED.get());
-	}
-	
-	static void onSlotOccupiedLocked(SimpleDownloader downloader) {
-		if (downloader == null) return;
-		if (downloader.isAutoConcurrentLocked()) GLOBAL_AUTO_OCCUPIED.incrementAndGet();
-		else GLOBAL_MANUAL_OCCUPIED.incrementAndGet();
-	}
-	
-	static void onSlotReleasedLocked(SimpleDownloader downloader) {
-		if (downloader == null) return;
-		if (downloader.isAutoConcurrentLocked()) decrement(GLOBAL_AUTO_OCCUPIED); else decrement(GLOBAL_MANUAL_OCCUPIED);
-	}
-	
-	static void rebalanceOccupiedCountersLocked(int count, boolean oldAuto, boolean newAuto) {
-		if (count <= 0 || oldAuto == newAuto) return;
-		AtomicInteger oldCounter = oldAuto ? GLOBAL_AUTO_OCCUPIED : GLOBAL_MANUAL_OCCUPIED;
-		AtomicInteger newCounter = newAuto ? GLOBAL_AUTO_OCCUPIED : GLOBAL_MANUAL_OCCUPIED;
-		for (int i = 0; i < count; i++) decrement(oldCounter);
-		newCounter.addAndGet(count);
-	}
-	
-	private static void decrement(AtomicInteger value) {
-		while (true) {
-			int current = value.get();
-			if (current <= 0) return;
-			if (value.compareAndSet(current, current - 1)) return;
-		}
-	}
-	
-	static int getGlobalAdaptiveTargetLocked() {
-		return AUTO_CONCURRENCY_CONTROLLER.getTargetSlotsLocked();
-	}
-	
-	static void onAdaptiveStateChangedLocked() {
-		ADAPTIVE_DISPATCH_EXECUTOR.execute(new Runnable() {
-			@Override
-			public void run() {
-				ArrayList<SimpleDownloader> instances;
-				synchronized (GLOBAL_LOCK) {
-					instances = snapshotInstancesLocked();
-				}
-				
-				for (SimpleDownloader downloader : instances) {
-					if (downloader == null || downloader.mShutdown) continue;
-					
-					synchronized (downloader.mLock) {
-						if (!downloader.isAutoConcurrentLocked()) continue;
-						downloader.slotManager.ensureExecutorLocked();
-						downloader.slotManager.submitReadyHeldTasksLocked();
-					}
-				}
-			}
-		});
-	}
-	
-	static AutoConcurrencyController autoConcurrencyController() {
-		return AUTO_CONCURRENCY_CONTROLLER;
 	}
 	
 	/** Stops this downloader instance and releases its runtime resources. */
@@ -1024,21 +857,7 @@ public class SimpleDownloader {
 				httpEngine.shutdown();
 				thumbLoader.shutdown();
 				
-				synchronized (GLOBAL_LOCK) {
-					INSTANCES.remove(SimpleDownloader.this);
-					if (sDefault == SimpleDownloader.this) sDefault = null;
-					releaseDatabaseLocked(databaseToRelease);
-					AUTO_CONCURRENCY_CONTROLLER.onInstanceRemovedLocked();
-					
-					if (sDefault == null) {
-						for (SimpleDownloader downloader : INSTANCES) {
-							if (downloader != null && !downloader.mShutdown && DEFAULT_OWNER_ID.equals(downloader.mOwnerId)) {
-								sDefault = downloader;
-								break;
-							}
-						}
-					}
-				}
+				DownloaderRegistry.INSTANCE.unregister(SimpleDownloader.this, databaseToRelease);
 			}
 		};
 		
@@ -1079,31 +898,31 @@ public class SimpleDownloader {
 		
 		/** Deletes the persisted database data for a specific task. This does not delete the downloaded file or remove the task from an active SimpleDownloader instance.*/		
 		public void deleteForTask(long taskId) {
-			TaskDatabase database = SHARED_DATABASE;
+			TaskDatabase database = DownloaderRegistry.INSTANCE.sharedDatabase();
 			if (database != null) database.deleteForTask(taskId);
 		}
 		
 		/** Deletes all persisted database data belonging to the specified owner. This does not delete the downloaded file or remove the task from an active SimpleDownloader instance.*/		
 		public void deleteForOwner(String ownerId) {
-			TaskDatabase database = SHARED_DATABASE;
+			TaskDatabase database = DownloaderRegistry.INSTANCE.sharedDatabase();
 			if (database != null) database.deleteForOwner(ownerId);
 		}
 		
 		/** Deletes all persisted database data belonging to the default owner. This does not delete the downloaded file or remove the task from an active SimpleDownloader instance.*/		
 		public void deleteForDefaultOwner() {
-			TaskDatabase database = SHARED_DATABASE;
+			TaskDatabase database = DownloaderRegistry.INSTANCE.sharedDatabase();
 			if (database != null) database.deleteForDefaultOwner();
 		}
 		
 		/** Deletes all persisted task data from the database. This does not delete the downloaded file or remove the task from an active SimpleDownloader instance.*/		
 		public void deleteForAll() {
-			TaskDatabase database = SHARED_DATABASE;
+			TaskDatabase database = DownloaderRegistry.INSTANCE.sharedDatabase();
 			if (database != null) database.deleteForAll();
 		}
 		
 		/** Drops and recreates the tasks table and its indexes. This removes all persisted task data. It does not delete downloaded files or remove tasks from active SimpleDownloader instances.*/		
 		public void resetTasksTable() {
-			TaskDatabase database = SHARED_DATABASE;
+			TaskDatabase database = DownloaderRegistry.INSTANCE.sharedDatabase();
 			if (database != null) database.resetTasksTable();
 		}
 	}
