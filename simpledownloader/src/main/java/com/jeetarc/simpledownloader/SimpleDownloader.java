@@ -28,9 +28,8 @@ import okhttp3.OkHttpClient;
 /**
 * Main entry point for starting, restoring, and managing downloads.
 *
-* <p>Each instance owns its tasks, listeners, queue, and network state. The
-* DownloaderRegistry coordinates cross-instance rules, global slot accounting,
-* adaptive concurrency, and the reference-counted shared database.</p>
+* Each downloader instance has its own tasks, listeners, queue, and network state. 
+* The DownloaderRegistry handles the rules that apply across instances, along with global slot limits, adaptive concurrency, and the shared database.
 */
 public class SimpleDownloader {
 	public static final String VERSION = "1.0.2";
