@@ -67,11 +67,6 @@ public final class DownloadService extends Service {
 		else startServiceForTask(task, ACTION_ATTACH_LIFECYCLE);
 	}
 	
-	static void onTaskQueued(DownloadTask task) {
-		DownloadService service = runningService;
-		if (service != null) service.handleQueued(task);
-	}
-	
 	static void onTaskProgress(final DownloadTask task) {
 		final DownloadService service = runningService;
 		if (service == null || task == null) return;
@@ -134,18 +129,6 @@ public final class DownloadService extends Service {
 	static void onTaskError(DownloadTask task, Throwable error) {
 		DownloadService service = runningService;
 		if (service != null) service.handleError(task, error);
-	}
-	
-	static void onTaskCancelled(DownloadTask task) {
-		if (task != null) task.cancelThumbnailRequest();
-		DownloadService service = runningService;
-		if (service != null) service.handleFinalRemoval(task);
-	}
-	
-	static void onTaskRemoved(DownloadTask task) {
-		if (task != null) task.cancelThumbnailRequest();
-		DownloadService service = runningService;
-		if (service != null) service.handleFinalRemoval(task);
 	}
 	
 	static void onTaskLifecycleEnded(DownloadTask task) {
@@ -267,8 +250,7 @@ public final class DownloadService extends Service {
 		
 		return START_NOT_STICKY;
 	}
-
-	@Override
+	
 	public void onTimeout(int startId, int fgsType) {
 		handleForegroundTimeout(startId);
 	}
@@ -300,7 +282,7 @@ public final class DownloadService extends Service {
 	
 	private DownloadTask findTask(long taskId) {
 		if (taskId < 0) return null;
-		return SimpleDownloader.findTaskAcrossInstances(taskId);
+		return DownloaderRegistry.INSTANCE.findTaskAcrossInstances(taskId);
 	}
 	
 	private void handleDownloaderShutdown(SimpleDownloader downloader) {
@@ -372,16 +354,6 @@ public final class DownloadService extends Service {
 		postProgressNotification(task, "Download starting...", null, task.mProgress, true, false, true);
 	}
 	
-	private void handleQueued(DownloadTask task) {
-		if (task == null) return;
-		if (!groupTasks.contains(task.mId) && !foregroundTasks.contains(task.mId)) return;
-		
-		cancelProgress(task.mId);
-		removeFromGroup(task.mId);
-		clearThumbnail(task.mId);
-		clearTaskNotificationBuilder(task.mId);
-	}
-	
 	private void handleProgress(DownloadTask task) {
 		if (task == null || !task.isActive()) return;
 		if (!isNotificationAllowed(task)) return;
@@ -431,40 +403,22 @@ public final class DownloadService extends Service {
 		if (task == null) return;
 		NotificationBuilder builder = taskBuilder(task);
 		Bitmap thumb = getThumbnail(task);
-		cancelProgress(task.mId);
 		
 		if (task.mDownloader.areNotificationsEnabled() && builder != null && builder.getConfig().showCompleteNotification) {
 			Notification notification = builder.buildComplete(task, task.mOutputUri, thumb);
 			postNotification(builder.finishedNotificationId(task.mId), notification);
 		}
-		
-		clearThumbnail(task.mId);
-		clearTaskNotificationBuilder(task.mId);
-		removeFromGroup(task.mId);
 	}
 	
 	private void handleError(DownloadTask task, Throwable error) {
 		if (task == null) return;
 		NotificationBuilder builder = taskBuilder(task);
 		Bitmap thumb = getThumbnail(task);
-		cancelProgress(task.mId);
 		
 		if (task.mDownloader.areNotificationsEnabled() && builder != null && builder.getConfig().showErrorNotification) {
 			Notification notification = builder.buildError(task, error, thumb);
 			postNotification(builder.finishedNotificationId(task.mId), notification);
 		}
-		
-		clearThumbnail(task.mId);
-		clearTaskNotificationBuilder(task.mId);
-		removeFromGroup(task.mId);
-	}
-	
-	private void handleFinalRemoval(DownloadTask task) {
-		if (task == null) return;
-		cancelProgress(task.mId);
-		removeFromGroup(task.mId);
-		clearThumbnail(task.mId);
-		clearTaskNotificationBuilder(task.mId);
 	}
 	
 	private void handleLifecycleEnded(DownloadTask task) {
