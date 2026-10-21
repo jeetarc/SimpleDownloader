@@ -255,8 +255,8 @@ final class NetworkManager {
 				
 				synchronized (downloader.mLock) {
 					if (downloader.isAutoConcurrentLocked()) {
-						SimpleDownloader.autoConcurrencyController().resetLocked();
-						SimpleDownloader.autoConcurrencyController().ensureInitializedLocked();
+						DownloaderRegistry.INSTANCE.autoConcurrencyController().resetLocked();
+						DownloaderRegistry.INSTANCE.autoConcurrencyController().ensureInitializedLocked();
 					}
 					downloader.slotManager.dispatchReadyTasks();
 				}
