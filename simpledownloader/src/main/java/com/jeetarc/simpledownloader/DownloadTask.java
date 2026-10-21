@@ -275,7 +275,7 @@ public class DownloadTask {
 			mDownloader.slotManager.removeQueuedTask(this);
 			mDownloader.networkManager.getWaitingForPreferredNetwork().remove(this);
 			
-			synchronized (SimpleDownloader.GLOBAL_LOCK) {
+			synchronized (DownloaderRegistry.LOCK) {
 				mDownloader.taskManager.removeTaskCompletelyLocked(this);
 			}
 			
@@ -601,7 +601,7 @@ public class DownloadTask {
 			mDownloader.taskManager.clearAutoSpeedLocked(this);
 			mDownloader.slotManager.removeQueuedTask(this);
 			mDownloader.networkManager.getWaitingForPreferredNetwork().remove(this);
-			synchronized (SimpleDownloader.GLOBAL_LOCK) {
+			synchronized (DownloaderRegistry.LOCK) {
 				mDownloader.taskManager.removeTaskCompletelyLocked(this);
 			}
 			if (mDownloader.taskDatabase != null) mDownloader.taskDatabase.removeTask(mId);
