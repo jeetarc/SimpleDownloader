@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
+
 final class TaskManager {
 	private final SimpleDownloader downloader;
 	private final ConcurrentHashMap<Long, DownloadTask> registry = new ConcurrentHashMap<Long, DownloadTask>();
@@ -181,11 +182,11 @@ final class TaskManager {
 		if (state == null) return null;
 		if (requester != null && !requester.getOwnerId().equals(state.ownerId)) return null;
 		
-		synchronized (SimpleDownloader.GLOBAL_LOCK) {
+		synchronized (DownloaderRegistry.LOCK) {
 			DownloadTask existing = getTask(state.id);
 			if (existing != null) return existing;
 			
-			for (SimpleDownloader downloader : SimpleDownloader.snapshotInstancesLockedForTaskRestore()) {
+			for (SimpleDownloader downloader : DownloaderRegistry.INSTANCE.snapshotInstances()) {
 				if (downloader == null || downloader == requester || downloader.mShutdown) continue;
 				DownloadTask other = downloader.taskManager.getTask(state.id);
 				if (other != null) return null;
@@ -200,7 +201,6 @@ final class TaskManager {
 			return task;
 		}
 	}
-	
 	
 	private void restoreTaskPositionLocked(DownloadTask task, Status restored, boolean autoRestore) {
 		if (task == null) return;
@@ -241,6 +241,7 @@ final class TaskManager {
 			for (DownloadTask task : registry.values()) {
 				if (task != null) task.removeAllListeners();
 			}
+            
 			observerList.clear();
 		}
 	}
