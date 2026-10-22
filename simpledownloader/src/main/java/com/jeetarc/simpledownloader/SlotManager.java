@@ -420,6 +420,7 @@ final class AutoConcurrencyController {
 	
 	private boolean initialized;
 	private boolean firstAllocationDone;
+	private boolean recordingSample;
 	private long lastRecordTime;
 	private long firstSampleTime;
 	private long lastSampleTime;
@@ -461,31 +462,48 @@ final class AutoConcurrencyController {
 	}
 	
 	void recordSpeedSampleLocked() {
-		if (DownloaderRegistry.INSTANCE.getGlobalAutoActiveCountLocked() <= 0) return;
+		DownloaderRegistry registry = DownloaderRegistry.INSTANCE;
+		int activeCount = registry.getGlobalAutoActiveCountLocked();
+		if (activeCount <= 0) return;
 		ensureInitializedLocked();
-		boolean changed = false;
+		long now = System.currentTimeMillis();
 		
 		synchronized (this) {
-			long now = System.currentTimeMillis();
-			if (now - lastRecordTime < SPEED_SAMPLE_INTERVAL_MS) return;
+			if (recordingSample || now - lastRecordTime < SPEED_SAMPLE_INTERVAL_MS) return;
 			lastRecordTime = now;
-			long totalSpeed = DownloaderRegistry.INSTANCE.getGlobalAutoSpeedLocked();
-			int activeCount = DownloaderRegistry.INSTANCE.getGlobalAutoActiveCountLocked();
-			
+			recordingSample = true;
+		}
+		
+		boolean changed = false;
+		
+		try {
+			long totalSpeed = registry.getGlobalAutoSpeedLocked();
+			activeCount = registry.getGlobalAutoActiveCountLocked();
 			if (totalSpeed <= 0 || activeCount <= 0) return;
-			if (smoothedTotalSpeed <= 0) smoothedTotalSpeed = totalSpeed;
-			else smoothedTotalSpeed = smoothSpeed(smoothedTotalSpeed, totalSpeed);
-			lastSampleTime = now;
-			if (!firstAllocationDone && firstSampleTime <= 0) firstSampleTime = now;
 			
-			if (!firstAllocationDone && firstSampleTime > 0 && now - firstSampleTime >= FIRST_ALLOCATION_DELAY_MS) {
-				targetSlots = calculateSlotFromSpeed(smoothedTotalSpeed);
-				firstAllocationDone = true;
-				changed = true;
+			synchronized (this) {
+				if (!initialized) return;
+				
+				if (smoothedTotalSpeed <= 0) smoothedTotalSpeed = totalSpeed;
+				else smoothedTotalSpeed = smoothSpeed(smoothedTotalSpeed, totalSpeed);
+				
+				lastSampleTime = now;
+				if (!firstAllocationDone && firstSampleTime <= 0) firstSampleTime = now;
+				
+				if (!firstAllocationDone && firstSampleTime > 0 && now - firstSampleTime >= FIRST_ALLOCATION_DELAY_MS) {
+					targetSlots = calculateSlotFromSpeed(smoothedTotalSpeed);
+					firstAllocationDone = true;
+					changed = true;
+				}
+			}
+            
+		} finally {
+			synchronized (this) {
+				recordingSample = false;
 			}
 		}
 		
-		if (changed) DownloaderRegistry.INSTANCE.onAdaptiveStateChangedLocked();
+		if (changed) registry.onAdaptiveStateChangedLocked();
 	}
 	
 	void evaluateAfterTaskFinishedLocked() {
