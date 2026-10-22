@@ -186,7 +186,7 @@ public class SimpleDownloader {
 			this.context = context.getApplicationContext();
 		}
 		
-		/** Sets a downloader/profile identity. Null or blank uses the built-in default owner. */
+		/** Sets a downloader/profile identity. Null or blank uses the built-in default owner ("default_owner"). */
 		public Builder setOwnerId(String ownerId) {
 			String value = ownerId == null ? null : ownerId.trim();
 			this.ownerId = value == null || value.length() == 0 ? DEFAULT_OWNER_ID : value;
@@ -304,18 +304,19 @@ public class SimpleDownloader {
 				return builtDownloader;
 			}
 			
-			int restoreSelections = 0;
-			if (autoRestore) restoreSelections++;
-			if (restoreAll) restoreSelections++;
-			if (restoreFiltered) restoreSelections++;
-			if (restoreSelections > 1) throw new IllegalStateException("Only one restore method can be configured: setAutoRestore(true), restoreTasks(), or restoreTasks(field, value).");
-			
 			Config config = new Config(this);
+			int restoreSelections = 0;
+			
+			if (config.autoRestore) restoreSelections++;
+			if (config.restoreAll) restoreSelections++;
+			if (config.restoreFiltered) restoreSelections++;
+			
+			if (restoreSelections > 1) throw new IllegalStateException("Only one restore method can be configured: " + "setAutoRestore(true), restoreTasks(), " + "or restoreTasks(field, value).");
 			SimpleDownloader downloader = new SimpleDownloader(context, config);
 			
-			if (autoRestore) downloader.restoreTasksInternal(true, null, null);
-			else if (restoreAll) downloader.restoreTasksInternal(false, null, null);
-			else if (restoreFiltered) downloader.restoreTasksInternal(false, restoreField, restoreValue);
+			if (config.autoRestore) downloader.restoreTasksInternal(true, null, null);
+			else if (config.restoreAll) downloader.restoreTasksInternal(false, null, null);
+			else if (config.restoreFiltered) downloader.restoreTasksInternal(false, config.restoreField, config.restoreValue);
 			
 			builtDownloader = downloader;
 			return downloader;
@@ -494,15 +495,18 @@ public class SimpleDownloader {
 	}
 	
 	public SimpleDownloader setMaxConcurrent(int max) {
-		if (max < 0) throw new IllegalArgumentException("maxConcurrent cannot be negative. Use 0 for adaptive mode.");
-		
+		if (max < 0) throw new IllegalArgumentException("maxConcurrent cannot be negative. " + "Use 0 for adaptive mode.");
 		synchronized (mLock) {
 			ensureNotShutdownLocked();
-			boolean oldAuto = isAutoConcurrentLocked();
-			mMaxConcurrent = max;
-			boolean newAuto = isAutoConcurrentLocked();
-			if (oldAuto != newAuto) slotManager.onConcurrencyModeChangedLocked(oldAuto, newAuto);
-			configureEffectiveConcurrencyLocked();
+            
+			synchronized (DownloaderRegistry.LOCK) {
+				boolean oldAuto = isAutoConcurrentLocked();
+				mMaxConcurrent = max;
+				boolean newAuto = isAutoConcurrentLocked();
+				if (oldAuto != newAuto) slotManager.onConcurrencyModeChangedLocked(oldAuto, newAuto);
+				configureEffectiveConcurrencyLocked();
+			}
+			
 			slotManager.ensureExecutorLocked();
 			slotManager.submitReadyHeldTasksLocked();
 		}
