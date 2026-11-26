@@ -17,6 +17,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import android.provider.MediaStore;
 
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -43,7 +44,7 @@ class DownloadFragment : Fragment() {
 	
 	private val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
 		if (uri == null) {
-			showToast("Failed to get folder URI, try again.")
+			App.showToast("Failed to get folder URI, try again.")
 			downloadAfterFolderSelection = false
 			return@registerForActivityResult
 		}
@@ -54,7 +55,7 @@ class DownloadFragment : Fragment() {
 			prefsFolder.edit().putString("saved_tree_uri", uri.toString()).apply()
 			
 			binding.txtDestination.text = uri.toString()
-			showToast("Folder selected successfully!")
+			App.showToast("Folder selected successfully!")
 			
 			if (downloadAfterFolderSelection) {
 				downloadAfterFolderSelection = false
@@ -63,7 +64,7 @@ class DownloadFragment : Fragment() {
 			
 		} catch (e: Exception) {
 			downloadAfterFolderSelection = false
-			showToast(e.message ?: e.toString())
+			App.showToast(e.message ?: e.toString())
 		}
 	}
 	
@@ -166,7 +167,7 @@ class DownloadFragment : Fragment() {
 		val inputHeaders = binding.txtInputHeaders.text.toString().trim()
 		
 		if (inputUrl.isEmpty()) {
-			showToast("Enter a URL to start download")
+			App.showToast("Enter a URL to start download")
 			return
 		}
 		
@@ -174,15 +175,15 @@ class DownloadFragment : Fragment() {
 		
 		if (STORAGE_MEDIA_STORE) {
 			if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-				showToast("MediaStore Downloads needs Android 10+. Try to use a different storage mode")
+				App.showToast("MediaStore Downloads needs Android 10+. Try to use a different storage mode")
 				return
 			}
 			
-			requestBuilder.setOutput(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, FileName.AUTO)
+			requestBuilder.setOutput(MediaStore.Downloads.EXTERNAL_CONTENT_URI, FileName.AUTO)
 			
 		} else if (STORAGE_TREE_URI) {
 			if (savedTreeUri == null) {
-				showToast("Please select a download folder")
+				App.showToast("Please select a download folder")
 				downloadAfterFolderSelection = true
 				openDocumentTree()
 				return
@@ -194,7 +195,7 @@ class DownloadFragment : Fragment() {
 			requestBuilder.setOutput(getFolderPath(), FileName.AUTO)
 			
 		} else {
-			showToast("Please select a storage mode")
+			App.showToast("Please select a storage mode")
 			return
 		}
 		
@@ -203,7 +204,7 @@ class DownloadFragment : Fragment() {
 				val headers: HashMap<String, String> = Gson().fromJson(inputHeaders, object : TypeToken<HashMap<String, String>>() {}.type)
 				requestBuilder.setHeaders(headers)
 			} catch (e: Exception) {
-				showToast("Unsupported format for headers. Use JSON format")
+				App.showToast("Unsupported format for headers. Use JSON format")
 				return
 			}
 		}
@@ -218,7 +219,7 @@ class DownloadFragment : Fragment() {
 	}
     
 	private fun createRoundedBackground(): GradientDrawable {
-		val primary = ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
+		val primary = ContextCompat.getColor(requireContext(), R.color.app_text_primary)
 		val faded = ContextCompat.getColor(requireContext(), R.color.md_theme_primary_faded)
 		
 		return GradientDrawable().apply {
@@ -243,9 +244,5 @@ class DownloadFragment : Fragment() {
 	fun goToTaskListPage() {
 		val viewPager = requireActivity().findViewById<ViewPager>(R.id.viewPagerNav)
 		viewPager.setCurrentItem(1, true)
-	}
-	
-	private fun showToast(message: String) {
-		Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
 	}
 }
