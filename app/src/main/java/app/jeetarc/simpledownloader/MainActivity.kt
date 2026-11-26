@@ -83,11 +83,11 @@ class MainActivity: AppCompatActivity() {
 	private fun setupDownloaderListener() {
 		app.getDownloader().addListener(object : SimpleDownloader.Listener {
 			override fun onComplete(outputUri: Uri, task: DownloadTask) {
-				showToast("Download complete!")
+				App.showToast("Download complete!")
 			}
 			
 			override fun onError(outputUri: Uri, err: Exception, task: DownloadTask) {
-				showToast("Download failed: " + err.message)
+				App.showToast("Download failed: " + err.message)
 			}
 		})
 	}
@@ -113,9 +113,5 @@ class MainActivity: AppCompatActivity() {
 	override fun onDestroy() {
 		app.getDownloader().releaseAllCallbacks()
 		super.onDestroy()
-	}
-	
-	private fun showToast(message: String) {
-		Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 	}
 }

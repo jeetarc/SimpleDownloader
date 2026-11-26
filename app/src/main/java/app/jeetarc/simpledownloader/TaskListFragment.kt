@@ -193,7 +193,7 @@ class TaskListFragment : Fragment() {
 				try {
 					startActivity(contentView)
 				} catch (e: ActivityNotFoundException) {
-					showToast("No app available to open this file")
+					App.showToast("No app available to open this file")
 				}
 			}
 			
@@ -239,12 +239,7 @@ class TaskListFragment : Fragment() {
 		inner class ViewHolder(val binding: ItemLayoutBinding) : RecyclerView.ViewHolder(binding.root)
 	}
 	
-	
 	private fun formatBytesRatio(task: DownloadTask) : String {
 		return Formatter.formatRatio(Formatter.formatBytes(task.downloadedBytes), Formatter.formatBytes(task.totalBytes), " / ");
-	}
-	
-	private fun showToast(msg : String) {
-		Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
 	}
 }
