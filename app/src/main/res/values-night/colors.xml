@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <color
-        name="md_theme_primary">#7CC4FF</color>
+        name="md_theme_primary">#00598F</color>
     <color
         name="md_theme_secondary">#5AB8FF</color>
     <color
@@ -15,5 +15,10 @@
     <color
         name="md_theme_on_background">#FFFFFF</color>
     <color
-        name="md_theme_primary_faded">#151F25</color>    
+        name="md_theme_primary_faded">#0D161C</color>
+        
+    <color name="app_text">#FFFFFF</color>
+    
+    <color name="app_text_secondary">#9E9E9E</color>
+    <color name="app_text_primary">#3AB1EE</color>
 </resources>
