@@ -20,7 +20,7 @@
 			android:layout_marginBottom="3dp"
 			android:textSize="11sp"
 			android:textStyle="bold"
-			android:textColor="#616161"
+			android:textColor="@color/app_text_secondary"
 			android:ellipsize="end"
 			android:maxLines="1"
 			android:focusable="false" />
@@ -31,7 +31,7 @@
 			android:text="00.00 B / 00.00 B • 000.00 B/s • 00m 00s left"
 			android:textSize="12sp"
 			android:textStyle="bold"
-			android:textColor="#212121"
+			android:textColor="@color/app_text"
 			android:maxLines="1"
 			android:ellipsize="end"
 			android:focusable="false" />
@@ -58,7 +58,7 @@
 				android:scaleType="centerInside"
 				android:layout_marginStart="8dp"
 				android:focusable="false"
-				android:tint="#000000" />
+				android:tint="@color/app_text" />
 		</LinearLayout>
 		<LinearLayout
 			android:id="@+id/linearButtons"
@@ -79,6 +79,7 @@
 				android:text="Open"
 				android:textSize="12sp"
 				android:textStyle="bold"
+                android:textColor="#FFFFFF"
 				android:layout_weight="1"
 				android:layout_marginEnd="4dp" />
 			<com.google.android.material.button.MaterialButton
@@ -91,6 +92,7 @@
 				android:text="Lock"
 				android:textSize="12sp"
 				android:textStyle="bold"
+                android:textColor="#FFFFFF"
 				android:layout_weight="1"
 				android:layout_marginEnd="4dp" />
 			<com.google.android.material.button.MaterialButton
@@ -103,6 +105,7 @@
 				android:text="Cancel"
 				android:textSize="12sp"
 				android:textStyle="bold"
+                android:textColor="#FFFFFF"
 				android:layout_weight="1"
 				android:layout_marginEnd="4dp" />
 			<com.google.android.material.button.MaterialButton
@@ -115,6 +118,7 @@
 				android:text="Remove"
 				android:textSize="12sp"
 				android:textStyle="bold"
+                android:textColor="#FFFFFF"
 				android:layout_weight="1" />
 		</LinearLayout>
 		<TextView
@@ -122,6 +126,7 @@
 			android:layout_width="wrap_content"
 			android:layout_height="wrap_content"
 			android:layout_marginTop="3dp"
+            android:textColor="@color/app_text_secondary"
 			android:text="00:00"
 			android:textSize="12sp"
 			android:textStyle="bold"
@@ -135,7 +140,7 @@
 			android:text="Status: Pending"
 			android:textSize="12sp"
 			android:textStyle="bold"
-			android:textColor="#616161"
+			android:textColor="@color/app_text_secondary"
 			android:layout_gravity="right"
 			android:focusable="false" />
 	</LinearLayout>
